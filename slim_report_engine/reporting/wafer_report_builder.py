@@ -64,7 +64,7 @@ def build_wafer_sheet(
     customer: str,
     date_received: date,
     slot_sample_labels: list[str],
-    additional_elements_text: str,
+    additional_element_names: list[str],
     element_service: ElementService,
 ) -> WaferReportResult:
     """number_of_elements_label: the ALREADY-NORMALIZED selection ("10/26
@@ -73,31 +73,35 @@ def build_wafer_sheet(
     content one). slot_sample_labels: one raw Sample-ID-column text per
     physical wafer sharing this sheet, in TR-row order -- becomes the
     "...-<label>" suffix of each sample column's header (column D's
-    "Process Blank" suffix is fixed, not one of these). additional_elements_text:
-    the raw comma-separated "Additional Elements" free-text column value,
-    or "" -- only meaningful for an Element-category sheet (silently
-    ignored for Anion, matching the real behavior: it only ever applies
-    before the "Analysis by LP-ICPMS." footer, which doesn't exist on an
-    anion sheet).
+    "Process Blank" suffix is fixed, not one of these). additional_element_names:
+    the resolved element names to add to the sheet -- the UNION across
+    every sample sharing this sheet (each physical wafer's own "Additional
+    Elements" cell can differ; for a blank report, add the union and let
+    the technician leave irrelevant cells blank rather than building N
+    different panels). Only meaningful for an Element-category sheet
+    (silently ignored for Anion, matching the real behavior: it only ever
+    applies before the "Analysis by LP-ICPMS." footer, which doesn't exist
+    on an anion sheet). The caller (wafer_submission_builder.py) is
+    responsible for resolving raw form text into this list; this function
+    no longer does any text parsing itself.
     """
     process_blank_id = _wafer_sample_string(date_received, wafer_size, customer, "Process Blank")
     slot_ids = [_wafer_sample_string(date_received, wafer_size, customer, label) for label in slot_sample_labels]
-    additional_names = _additional_element_names(additional_elements_text)
 
     if number_of_elements_label == "36 Elements":
         section = wafer_panel_builder.build_element_panel(
             number_of_elements_label, _ATOMS_NOTE, process_blank_id, slot_ids,
-            analyte_presets.trace_elements_36(), element_service, additional_names,
+            analyte_presets.trace_elements_36(), element_service, additional_element_names,
         )
     elif number_of_elements_label == "67 Elements":
         section = wafer_panel_builder.build_element_panel(
             number_of_elements_label, _ATOMS_NOTE, process_blank_id, slot_ids,
-            analyte_presets.trace_elements_67(), element_service, additional_names,
+            analyte_presets.trace_elements_67(), element_service, additional_element_names,
         )
     elif number_of_elements_label == "List #2 36 Elements":
         section = wafer_panel_builder.build_element_panel(
             number_of_elements_label, _ATOMS_NOTE, process_blank_id, slot_ids,
-            analyte_presets.trace_elements_36_list2(), element_service, additional_names,
+            analyte_presets.trace_elements_36_list2(), element_service, additional_element_names,
         )
     elif number_of_elements_label == "4 Anions":
         section = wafer_panel_builder.build_anion_panel(
@@ -123,9 +127,3 @@ def build_wafer_sheet(
 
 def _wafer_sample_string(date_received: date, wafer_size: str, customer: str, suffix: str) -> str:
     return f"{date_received.strftime('%m%d%y')}-{wafer_size} Wafers-{customer}-{suffix}"
-
-
-def _additional_element_names(raw_text: str) -> list[str]:
-    if not raw_text.strip():
-        return []
-    return [part.strip() for part in raw_text.split(",")]
