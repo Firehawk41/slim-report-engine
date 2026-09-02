@@ -1,0 +1,228 @@
+from dataclasses import dataclass
+
+import pytest
+
+from slim_domain.domain.tr.enums import ProcessingTime
+from slim_domain.domain.tr.tr_sample import TRSample
+
+from slim_report_engine.reporting import chemical_water_report_builder as orchestrator
+
+
+@dataclass(frozen=True)
+class _FakeAnalysis:
+    name: str
+
+
+class _FakeAnalysisService:
+    """Maps analysis_id -> name via a plain dict, no DB session needed."""
+
+    def __init__(self, id_to_name: dict[int, str]) -> None:
+        self._id_to_name = id_to_name
+
+    def load_analysis(self, analysis_id: int):
+        name = self._id_to_name.get(analysis_id)
+        return _FakeAnalysis(name) if name is not None else None
+
+
+@dataclass(frozen=True)
+class _FakeElement:
+    name: str
+    symbol: str
+
+
+class _FakeElementService:
+    """Resolves ANY symbol to an element named after itself -- good enough
+    for dispatch tests, which only care that the right builder ran, not
+    real periodic-table names."""
+
+    def get_by_symbol(self, symbol: str):
+        return _FakeElement(name=symbol, symbol=symbol)
+
+
+def _sample(analysis_ids: tuple[int, ...]) -> TRSample:
+    return TRSample(
+        sample_name="S-1",
+        form_chemical_name="Test Matrix",
+        processing_time=ProcessingTime.NEXT_DAY,
+        additional_notes="",
+        requested_time="",
+        chemical_id=1,
+        analysis_ids=analysis_ids,
+    )
+
+
+# ---------------------------------------------------------------------------
+# can_build_sections
+# ---------------------------------------------------------------------------
+
+def test_can_build_sections_false_for_no_analyses():
+    svc = _FakeAnalysisService({})
+    assert orchestrator.can_build_sections(_sample(()), svc) is False
+
+
+def test_can_build_sections_true_for_all_supported():
+    svc = _FakeAnalysisService({1: "36 Elements", 2: "TOC"})
+    assert orchestrator.can_build_sections(_sample((1, 2)), svc) is True
+
+
+def test_can_build_sections_false_for_any_unsupported():
+    svc = _FakeAnalysisService({1: "36 Elements", 2: "Sn+2 Iodine Titration"})
+    assert orchestrator.can_build_sections(_sample((1, 2)), svc) is False
+
+
+def test_can_build_sections_true_for_standalone_ph():
+    """The pH fix: standalone pH is supported now, not conditionally
+    rejected like the VBA source."""
+    svc = _FakeAnalysisService({1: "pH"})
+    assert orchestrator.can_build_sections(_sample((1,)), svc) is True
+
+
+def test_can_build_sections_true_for_dissolved_and_total_si():
+    """The Silicon gap fix: CanBuildSections and BuildSections now agree."""
+    svc = _FakeAnalysisService({1: "Dissolved and Total Si"})
+    assert orchestrator.can_build_sections(_sample((1,)), svc) is True
+
+
+# ---------------------------------------------------------------------------
+# build_sections -- metals
+# ---------------------------------------------------------------------------
+
+def test_10_26_36_elements_all_use_the_same_36_symbol_list_different_labels():
+    for name, expected_label in (("10 Elements", "10 Tr.Elts"), ("26 Elements", "26 Tr.Elts"), ("36 Elements", "36 Tr.Elts")):
+        svc = _FakeAnalysisService({1: name})
+        sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+        assert len(sections) == 1
+        section = sections[0]
+        data_rows = [r for r in section.rows if r.style_name == "DataLabel" and r.get_value(3)]
+        assert len(data_rows) == 36
+        avg_row = next(r for r in section.rows if r.get_value(2) and "AVERAGE" in str(r.get_value(2)))
+        assert avg_row.get_value(2) == f"AVERAGE / {expected_label}"
+
+
+def test_67_elements_uses_67_symbol_list():
+    svc = _FakeAnalysisService({1: "67 Elements"})
+    sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+    data_rows = [r for r in sections[0].rows if r.style_name == "DataLabel" and r.get_value(3)]
+    assert len(data_rows) == 67
+
+
+# ---------------------------------------------------------------------------
+# build_sections -- ions
+# ---------------------------------------------------------------------------
+
+def test_4_anions_panel_has_4_rows_labeled_anion():
+    svc = _FakeAnalysisService({1: "4 Anions"})
+    sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+    section = sections[0]
+    header = section.rows[1]
+    assert header.get_value(2) == "Anion"
+    data_rows = [r for r in section.rows if r.style_name == "DataLabel"]
+    assert len(data_rows) == 4
+
+
+def test_gbp_panel_labeled_analyte():
+    svc = _FakeAnalysisService({1: "GBP"})
+    sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+    header = sections[0].rows[1]
+    assert header.get_value(2) == "Analyte"
+
+
+# ---------------------------------------------------------------------------
+# build_sections -- silicon
+# ---------------------------------------------------------------------------
+
+def test_total_silicon_alone():
+    svc = _FakeAnalysisService({1: "Total Silicon"})
+    sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+    assert len(sections) == 1
+    labels = [r.get_value(2) for r in sections[0].rows if r.style_name == "DataLabel"]
+    assert labels == ["Silicon"]
+
+
+def test_total_and_dissolved_silicon_collapse_into_one_section_with_colloidal_row():
+    svc = _FakeAnalysisService({1: "Total Silicon", 2: "Dissolved Silicon"})
+    sections = orchestrator.build_sections(_sample((1, 2)), svc, _FakeElementService())
+    assert len(sections) == 1
+    labels = [r.get_value(2) for r in sections[0].rows if r.style_name == "DataLabel"]
+    assert labels == ["Silicon", "Dissolved Silica", "Colloidal Silica *"]
+
+
+# ---------------------------------------------------------------------------
+# build_sections -- electrical / pH fix
+# ---------------------------------------------------------------------------
+
+def test_conductivity_alone():
+    svc = _FakeAnalysisService({1: "Conductivity"})
+    sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+    assert len(sections) == 1
+    footer = sections[0].rows[-1]
+    assert footer.get_value(1) == "Analysis by Conductivity Electrode"
+
+
+def test_standalone_ph_dispatches_to_misc_analysis_not_electrical():
+    """The pH fix under test: no Conductivity present -> Misc Analysis's
+    own pH block, not the Electrical Testing one, and NOT a raise."""
+    svc = _FakeAnalysisService({1: "pH"})
+    sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+    assert len(sections) == 1
+    header = sections[0].rows[1]
+    assert header.get_value(2) == "pH"  # Misc Analysis's category label, not "Electrical Testing"
+    footer = sections[0].rows[-1]
+    assert footer.get_value(1) == "Analysis by pH Electrode"
+
+
+def test_conductivity_and_ph_together_collapse_into_one_electrical_section():
+    svc = _FakeAnalysisService({1: "Conductivity", 2: "pH"})
+    sections = orchestrator.build_sections(_sample((1, 2)), svc, _FakeElementService())
+    assert len(sections) == 1
+    header = sections[0].rows[1]
+    assert header.get_value(2) == "Electrical Testing"
+    footer = sections[0].rows[-1]
+    assert footer.get_value(1) == "Analysis by pH/Conductivity Electrode"
+
+
+def test_conductivity_and_ph_order_reversed_still_collapses_into_one_section():
+    """Whichever of Conductivity/pH is processed first, the pair still
+    collapses into exactly one section, not two."""
+    svc = _FakeAnalysisService({1: "pH", 2: "Conductivity"})
+    sections = orchestrator.build_sections(_sample((1, 2)), svc, _FakeElementService())
+    assert len(sections) == 1
+    assert sections[0].rows[1].get_value(2) == "Electrical Testing"
+
+
+# ---------------------------------------------------------------------------
+# build_sections -- misc analysis combine freely
+# ---------------------------------------------------------------------------
+
+def test_density_lpc_apha_combine_freely_with_no_special_logic():
+    svc = _FakeAnalysisService({1: "Density", 2: "Liquid Particle Count", 3: "APHA Color"})
+    sections = orchestrator.build_sections(_sample((1, 2, 3)), svc, _FakeElementService())
+    assert len(sections) == 3
+    footers = [s.rows[-1].get_value(1) for s in sections]
+    assert footers == [
+        "Analysis by Gay-Lussac Pycnometer",
+        "Analysis by Liquid Particle Counter.",
+        "Analysis by UV-Vis (average of six replicates)",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# ordering, dedup, and error path
+# ---------------------------------------------------------------------------
+
+def test_sections_preserve_first_requested_order():
+    svc = _FakeAnalysisService({1: "TOC", 2: "Alkalinity", 3: "Bacteria Count"})
+    sections = orchestrator.build_sections(_sample((1, 2, 3)), svc, _FakeElementService())
+    assert [s.id for s in sections] == ["TOC", "Alkalinity", "Bacteria Count"]
+
+
+def test_duplicate_analysis_ids_resolving_to_the_same_name_are_deduplicated():
+    svc = _FakeAnalysisService({1: "TOC", 2: "TOC"})
+    sections = orchestrator.build_sections(_sample((1, 2)), svc, _FakeElementService())
+    assert len(sections) == 1
+
+
+def test_unsupported_analysis_raises_clear_error():
+    svc = _FakeAnalysisService({1: "Sn+2 Iodine Titration"})
+    with pytest.raises(ValueError, match="Sn\\+2 Iodine Titration"):
+        orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
