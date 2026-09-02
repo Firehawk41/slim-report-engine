@@ -1,0 +1,40 @@
+"""Builds a ReportSection for the Anions/Cations/GBP panel shape — ported
+from clsIonListSectionBuilder.cls. Shares the header/row/footer shape with
+the metals panels (see row_builders) but differs in that:
+
+- ions aren't DB-backed at all (no "add a new anion" business process the
+  way there is for chemicals/customers — fixed reference data, see
+  presets/ion_presets.py), so this takes ready-made Analyte objects
+  directly and has no element-service dependency;
+- the third results column is labeled "QL", not "MDL" (confirmed from the
+  real template);
+- there is NO AVERAGE/TOTAL summary — confirmed from the real template,
+  the block ends directly at the "Analysis by IC" footer.
+"""
+
+from __future__ import annotations
+
+from slim_report_engine.reporting import row_builders
+from slim_report_engine.reporting.analyte import Analyte
+from slim_report_engine.reporting.report_section import ReportSection
+
+
+def build_ion_panel(
+    id: str,
+    category_label: str,
+    analytes: list[Analyte],
+    footer_text: str,
+) -> ReportSection:
+    """category_label: e.g. "Anion"/"Cation" (the column-header label above
+    the analyte list). analytes: in display order (see presets/ion_presets.py).
+    footer_text: e.g. "Analysis by IC".
+    """
+    section = ReportSection(id)
+    row_builders.add_header_rows(section, category_label, "QL")
+
+    for analyte in analytes:
+        row_builders.add_analyte_row(section, analyte.name, analyte.symbol)
+
+    row_builders.add_footer_row(section, footer_text)
+
+    return section
