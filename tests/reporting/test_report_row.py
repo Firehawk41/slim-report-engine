@@ -1,0 +1,57 @@
+import pytest
+
+from slim_report_engine.reporting.report_row import DEFAULT_MAX_COLUMNS, ReportRow
+
+
+def test_default_style_and_max_columns():
+    row = ReportRow()
+    assert row.style_name == "Normal"
+    assert row.max_columns == DEFAULT_MAX_COLUMNS
+
+
+def test_set_and_get_value():
+    row = ReportRow()
+    row.set_value(2, "Aluminum")
+    assert row.get_value(2) == "Aluminum"
+
+
+def test_get_value_defaults_to_none():
+    row = ReportRow()
+    assert row.get_value(5) is None
+
+
+def test_set_value_out_of_range_raises():
+    row = ReportRow(max_columns=12)
+    with pytest.raises(ValueError):
+        row.set_value(13, "x")
+    with pytest.raises(ValueError):
+        row.set_value(0, "x")
+
+
+def test_wafer_row_allows_up_to_19_columns():
+    row = ReportRow(style_name="WaferHeader", max_columns=19)
+    row.set_value(19, "MDL")
+    assert row.get_value(19) == "MDL"
+
+
+def test_formula_round_trip():
+    row = ReportRow()
+    assert row.has_formula(4) is False
+    row.set_formula(4, "=AVERAGE(R[-36]C:R[-1]C)")
+    assert row.has_formula(4) is True
+    assert row.get_formula(4) == "=AVERAGE(R[-36]C:R[-1]C)"
+
+
+def test_formula_columns_lists_only_set_formulas():
+    row = ReportRow()
+    row.set_formula(3, "=SUM(R[-1]C)")
+    row.set_formula(5, "=SUM(R[-1]C)")
+    assert sorted(row.formula_columns) == [3, 5]
+
+
+def test_values_property_is_a_defensive_copy():
+    row = ReportRow()
+    row.set_value(1, "a")
+    snapshot = row.values
+    snapshot[1] = "mutated"
+    assert row.get_value(1) == "a"

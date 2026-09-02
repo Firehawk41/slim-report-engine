@@ -1,4 +1,4 @@
-# PRECILAB Report Creator — Domain Brief
+# SLIM Report Engine — Domain Brief
 
 Everything below is verified against the real production files (real
 Access schema dump, real intake forms' own dropdown lists, real
@@ -193,7 +193,7 @@ Confirmed real shapes:
 - **Silicon**: up to three rows — "Silicon"/Si (Total), "Dissolved
   Silica"/SiO2 (Dissolved), and — ONLY when both are requested
   together — a third calculated "Colloidal Silica" row (the
-  difference between the two). Uses the singular "PRECILAB Result"
+  difference between the two). Uses the singular "Result"
   header text, not the plural used elsewhere — a genuine template
   inconsistency, not an error to "fix."
 - **Single-parameter blocks** (TOC, Alkalinity, Bacteria Count, and
@@ -281,8 +281,9 @@ unify these two orders.
 - **DM5 non-routine, and generic Chemical/Water**: the SAME standard
   format — `mmddyy-ChemicalOrLabel-CustomerName-SampleID` — with a
   couple of substitution rules baked in (DM5-N's W2000 substitutes its
-  display label; a customer literally named "UPS" displays as
-  "FUJIFILM UPS" in this string specifically, not elsewhere).
+  display label; at least one other customer has its own display-name
+  substitution specific to this string — real, but customer-specific;
+  not enumerated here, see the internal-only version for specifics).
 - **Wafer**: `mmddyy-WaferSize Wafers-CustomerName-<suffix>`, where
   `<suffix>` is the literal word "Process Blank" for the blank column
   or the raw sample-ID text the technician typed for a real sample

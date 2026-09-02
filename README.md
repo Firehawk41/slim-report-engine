@@ -1,8 +1,8 @@
-# PRECILAB Report Engine
+# SLIM Report Engine
 
 ## What this is
 
-A Python-first reimplementation of PRECILAB's lab-report-generation
+A Python-first reimplementation of a lab's report-generation
 logic, with a thin VBA layer as the Excel front end. Replaces (or
 sits beside) `modReportCreator.bas`, a ~2000-line VBA macro that
 generates blank analysis report sheets from testing-request workbooks.
@@ -36,6 +36,10 @@ Python isn't.
   This mirrors a layer that already exists and is already isolated in
   the VBA prototype (Entity/Builder/dispatch classes with zero
   Excel/Range coupling) — it's a natural, not speculative, port target.
+  The Customer/Chemical/Analysis/Element domain model and the Testing
+  Request submission/sample parsing stack are not built here from
+  scratch — they're pulled in from `slim-domain` (see below), which
+  already has this as a tested Python port of the same VBA classes.
 - **VBA stays thin**: it owns the actual Excel object model writes
   (`Range`, styles, formulas, real-template row fidelity) and calls
   into the Python layer for "what to write," rather than deciding it
@@ -74,7 +78,7 @@ AV/EDR than a plain macro, and that's worth clearing early.
   separate conversation about that migration.
 - Exotic/rare analysis types (organic-matrix, ICP-OES, and
   microwave-digestion element-panel variants; MS-Authentication anion
-  rendering; most Titrations; all Qorvo/customer-specific edge cases).
+  rendering; most Titrations; all customer-specific edge cases).
 - Wafer's anion-sheet variants (4/5/7 Anions) — not currently offered
   to customers, deprioritized on purpose.
 
@@ -84,3 +88,22 @@ That repo remains the tool for verifying VBA-side behavior actually
 works in real Excel (template fidelity, formula computation, real
 object-model quirks) — still needed for whatever stays VBA-side here.
 This repo is not a replacement for it, just a different concern.
+
+## Relationship to `slim-domain`
+
+`slim-domain` is a separate, shared package holding the
+Customer/Chemical/Analysis/Element domain model (Entity → Repository →
+Cache → Service) and the Testing Request submission/sample parsing
+stack. It isn't specific to report generation — it's shared with at
+least one other consuming app — so anything report-generation-specific
+(the report section/row model, section builders) lives here instead,
+consuming `slim-domain`'s entities as-is rather than duplicating or
+modifying them.
+
+## Setup
+
+```bash
+pip install -e ../slim-domain -e ".[dev]"
+cp .env.template .env   # then edit if not using the SQLite default
+python -m pytest
+```
