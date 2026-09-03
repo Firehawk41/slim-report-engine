@@ -47,6 +47,7 @@ from slim_domain.domain.chemical.chemical_service import ChemicalService
 from slim_domain.domain.customer.customer import Customer
 from slim_domain.domain.element.element_service import ElementService
 from slim_domain.domain.tr.enums import RequestType
+from slim_domain.domain.tr.tr_sample import TRSample
 from slim_domain.domain.tr.tr_submission import TRSubmission
 
 from slim_report_engine.reporting import chemical_water_report_builder, column_widths, dm5_non_routine_report_builder
@@ -109,7 +110,10 @@ def build_submission_sheets(
             )
             continue
 
-        sections = chemical_water_report_builder.build_sections(sample, analysis_service, element_service)
+        metals_prep_text = _metals_prep_text(submission, sample, chemical_service)
+        sections = chemical_water_report_builder.build_sections(
+            sample, analysis_service, element_service, metals_prep_text
+        )
         chemical_name = sample.form_chemical_name if submission.request_type == RequestType.CHEMICAL else "Water"
         sample_string = build_sample_string(
             submission.date_received, chemical_name, customer.name, sample.sample_name
@@ -152,6 +156,26 @@ def _build_wafer_sheets(
             )
         )
     return sheets
+
+
+_DEFAULT_METALS_PREP = "Evaporation"
+_WATER_METALS_PREP = "Dilute and Shoot"
+
+
+def _metals_prep_text(submission: TRSubmission, sample: TRSample, chemical_service: ChemicalService) -> str:
+    """Confirmed real (see chemical_water_report_builder.py's PREP TEXT
+    docstring section): Chemical samples read the resolved Chemical's own
+    catalog prep, defaulting to "Evaporation" (current lab practice) when
+    that field is blank; Water samples have no Chemical record to read
+    from at all and use "Dilute and Shoot" -- confirmed across every real
+    Water sample checked, not just additional-elements-only ones.
+    """
+    if submission.request_type != RequestType.CHEMICAL:
+        return _WATER_METALS_PREP
+    chemical = chemical_service.load_chemical(sample.chemical_id)
+    if chemical is not None and chemical.metals_prep:
+        return chemical.metals_prep
+    return _DEFAULT_METALS_PREP
 
 
 def _sanitize_sheet_name(name: str) -> str:

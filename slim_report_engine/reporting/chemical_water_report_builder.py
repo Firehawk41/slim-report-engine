@@ -7,14 +7,55 @@ Ported from clsChemicalWaterReportBuilder.cls.
 Covers the analyses that map unambiguously onto an existing section
 builder. Deliberately NOT supported yet (raises a clear, actionable error
 rather than guessing):
-  - Any "+ MS Confirmation"/"+ Organic Anions" anion variant — a separate
-    "Anions MS-Authentication rendering" (extra analyte, elution-order
-    sort) not built yet.
   - Organic-matrix / ICP-OES / microwave-digestion / "with reported
-    replicates" element-panel variants, Assay/Moisture/GC-FID/GC-MS/
-    Titrations, Mixed Acid Assay, UV-Vis, Acetate and Formate, Sn+2 Iodine
-    Titration, Free Acid, TS-SLG, and all customer-specific edge cases —
-    deliberately last priority, not attempted here.
+    replicates" element-panel variants, Moisture/GC-MS, Mixed Acid Assay,
+    UV-Vis, Acetate and Formate, Sn+2 Iodine Titration, Free Acid, TS-SLG,
+    and all customer-specific edge cases — deliberately last priority, not
+    attempted here.
+
+"5 ANIONS + MS AUTHENTICATION" — confirmed real (one real Chemical
+customer's report): renders the EXACT SAME 5-anion panel as plain
+"5 Anions" (same analytes, same order, same footer). The "MS
+Authentication" appendix visible on the real report (a "Conductivity"
+label, ~35 blank rows, then an "MS data with..." label and 3 hand-typed
+notes) is confirmed genuinely blank in every real file checked — no
+embedded image, no cell data — i.e. staff paste/type it in separately
+after generation; not reproduced here, same category as GC-FID's
+manually-filled chemical-name placeholders. This matches the legacy
+macro's own treatment (modReportCreator.bas only substitutes the TAB NAME
+text for this variant, "MS confirmation" -> "MS Authentication", implying
+the underlying content was already understood to be identical).
+
+PREP TEXT — the metals panel's footer ("Analysis by ICPMS (<prep>)") is
+NOT a fixed string. Confirmed real: Chemical samples use the resolved
+Chemical's own catalog prep method (Chemical.metals_prep -- one real
+Chemical sample's report used "Evaporation"), defaulting to "Evaporation"
+when that field is blank (current lab practice, per direct confirmation:
+default to Evaporation, then hand-correct when something else applies).
+Water samples use "Dilute and Shoot" instead — confirmed across every real
+Water sample checked, including ones with a full catalog panel, not just
+additional-elements-only ones — there's no Chemical record for Water to
+read a prep from at all, and physically it's a different method
+(concentrates get evaporated down; water samples are already dilute). The
+caller (submission_report_builder.py) computes this and passes it in as
+metals_prep_text; this module has no DB dependency of its own.
+
+ADDITIONAL ELEMENTS — confirmed real (several real Chemical and Water
+customers' reports): the free-text "Additional Elements (specify)"
+request was previously silently dropped entirely by this module. Now
+rendered two ways, confirmed against real completed reports: appended as
+a second labeled block after an existing metals panel's footer when one
+was also requested (see
+analyte_list_section_builder.add_additional_elements_block), or as its own
+minimal panel-shaped section when additional elements are the ONLY thing
+requested on a sample (confirmed real: several real Water samples were
+exactly like this — see
+analyte_list_section_builder.build_additional_elements_only_panel). Both
+reuse the SAME prep_text as the sample's main metals panel would use — a
+customer-specific override on the additional-elements block specifically
+(confirmed real for one customer: a different prep method than the main
+panel's, per an agreement with that customer) is deliberately deferred,
+separate work.
 
 PH DISPATCH — a deliberate improvement over the VBA source: standalone
 "pH" (Conductivity NOT also requested) maps to
@@ -52,16 +93,17 @@ from slim_report_engine.reporting.section_builders import (
     misc_analysis_section_builder,
     silicon_section_builder,
     simple_test_section_builder,
+    titrations_section_builder,
 )
 
 _UNCONDITIONALLY_SUPPORTED = {
     "36 Elements", "26 Elements", "10 Elements", "67 Elements", "USP Elements", "List #2 36 Elements",
-    "4 Anions", "5 Anions", "7 Anions", "Anions",
+    "4 Anions", "5 Anions", "7 Anions", "Anions", "5 Anions + MS Authentication",
     "6 Cations", "NH4", "Methylamines", "Cations", "GBP",
     "Total Silicon", "Dissolved Silicon", "Dissolved and Total Si",
     "TOC", "Alkalinity", "Bacteria Count",
     "Conductivity", "Density", "Liquid Particle Count", "APHA Color",
-    "pH",
+    "pH", "Assay",
 }
 
 
@@ -72,7 +114,10 @@ def can_build_sections(sample: TRSample, analysis_service: AnalysisService) -> b
     """
     names = _resolved_names_in_order(sample, analysis_service)
     if not names:
-        return False
+        # No named analysis at all is still buildable when the sample's
+        # only request is the free-text "Additional Elements" field --
+        # confirmed real (a real Water customer's report) -- see build_sections.
+        return bool(sample.additional_element_ids)
     return all(name in _UNCONDITIONALLY_SUPPORTED for name in names)
 
 
@@ -80,10 +125,17 @@ def build_sections(
     sample: TRSample,
     analysis_service: AnalysisService,
     element_service: ElementService,
+    metals_prep_text: str = "Evaporation",
 ) -> list[ReportSection]:
-    """Returns one (or more, for Silicon's calculated Colloidal Silica row)
-    ReportSection per resolved analysis on the sample, in request order —
-    except Conductivity+pH, which collapse into ONE combined section.
+    """Returns one (or more, for Silicon's calculated Colloidal Silica row,
+    or the additional-elements block) ReportSection per resolved analysis
+    on the sample, in request order — except Conductivity+pH, which
+    collapse into ONE combined section.
+
+    metals_prep_text: the metals panel's footer method text -- see module
+    docstring's PREP TEXT section. The caller (submission_report_builder.py)
+    computes this from the resolved Chemical's catalog prep (Chemical/Water
+    request-type dependent); this module has no DB dependency of its own.
     """
     names = _resolved_names_in_order(sample, analysis_service)
     names_set = set(names)
@@ -95,38 +147,45 @@ def build_sections(
     sections: list[ReportSection] = []
     silicon_added = False
     conductivity_and_ph_handled = False
+    # Tracks the one metals-panel section a sample can have (36/26/10/67/
+    # USP/List#2 36 -- mutually exclusive real form selections), so a
+    # trailing additional-elements block can be attached to it below,
+    # after the dispatch loop -- see module docstring's ADDITIONAL
+    # ELEMENTS section.
+    metals_panel_section: ReportSection | None = None
 
     for name in names:
         if name in ("36 Elements", "26 Elements", "10 Elements"):
             # The 10/26/36-Elements selections render the SAME 36-element
             # list -- only the AVERAGE/TOTAL summary label differs.
             summary_label = name.replace("Elements", "Tr.Elts")
-            sections.append(
-                analyte_list_section_builder.build_metals_panel(
-                    name, analyte_presets.trace_elements_36(), summary_label, element_service
-                )
+            metals_panel_section = analyte_list_section_builder.build_metals_panel(
+                name, analyte_presets.trace_elements_36(), summary_label, element_service, metals_prep_text
             )
+            sections.append(metals_panel_section)
         elif name == "67 Elements":
-            sections.append(
-                analyte_list_section_builder.build_metals_panel(
-                    name, analyte_presets.trace_elements_67(), "67 Tr.Elts", element_service
-                )
+            metals_panel_section = analyte_list_section_builder.build_metals_panel(
+                name, analyte_presets.trace_elements_67(), "67 Tr.Elts", element_service, metals_prep_text
             )
+            sections.append(metals_panel_section)
         elif name == "USP Elements":
-            sections.append(
-                analyte_list_section_builder.build_metals_panel(
-                    name, analyte_presets.trace_elements_usp(), "USP Tr.Elts", element_service
-                )
+            metals_panel_section = analyte_list_section_builder.build_metals_panel(
+                name, analyte_presets.trace_elements_usp(), "USP Tr.Elts", element_service, metals_prep_text
             )
+            sections.append(metals_panel_section)
         elif name == "List #2 36 Elements":
-            sections.append(
-                analyte_list_section_builder.build_metals_panel(
-                    name, analyte_presets.trace_elements_36_list2(), "36 Tr.Elts", element_service
-                )
+            metals_panel_section = analyte_list_section_builder.build_metals_panel(
+                name, analyte_presets.trace_elements_36_list2(), "36 Tr.Elts", element_service, metals_prep_text
             )
+            sections.append(metals_panel_section)
         elif name == "4 Anions":
             sections.append(_ion_panel(name, "Anion", ion_presets.anions_4()))
         elif name == "5 Anions":
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_5()))
+        elif name == "5 Anions + MS Authentication":
+            # Confirmed real: identical panel content to plain "5 Anions"
+            # -- see module docstring's "5 ANIONS + MS AUTHENTICATION"
+            # section for why the appendix isn't reproduced here.
             sections.append(_ion_panel(name, "Anion", ion_presets.anions_5()))
         elif name == "7 Anions":
             sections.append(_ion_panel(name, "Anion", ion_presets.anions_7()))
@@ -178,6 +237,8 @@ def build_sections(
             sections.append(misc_analysis_section_builder.build_lpc(name))
         elif name == "APHA Color":
             sections.append(misc_analysis_section_builder.build_apha(name))
+        elif name == "Assay":
+            sections.append(titrations_section_builder.build_assay(name))
         else:
             raise ValueError(
                 f"analysis {name!r} is not yet supported by this architecture -- "
@@ -185,11 +246,33 @@ def build_sections(
                 "(see module docstring for the deferred list)."
             )
 
+    additional_element_names = _resolve_additional_element_names(sample, element_service)
+    if additional_element_names:
+        if metals_panel_section is not None:
+            analyte_list_section_builder.add_additional_elements_block(
+                metals_panel_section, additional_element_names, element_service, metals_prep_text
+            )
+        else:
+            sections.append(
+                analyte_list_section_builder.build_additional_elements_only_panel(
+                    "Additional Elements", additional_element_names, element_service, metals_prep_text
+                )
+            )
+
     return sections
 
 
 def _ion_panel(name: str, category_label: str, analytes) -> ReportSection:
     return ion_list_section_builder.build_ion_panel(name, category_label, analytes, "Analysis by IC")
+
+
+def _resolve_additional_element_names(sample: TRSample, element_service: ElementService) -> list[str]:
+    names: list[str] = []
+    for element_id in sample.additional_element_ids:
+        element = element_service.load_element(element_id)
+        if element is not None:
+            names.append(element.name)
+    return names
 
 
 def _resolved_names_in_order(sample: TRSample, analysis_service: AnalysisService) -> list[str]:

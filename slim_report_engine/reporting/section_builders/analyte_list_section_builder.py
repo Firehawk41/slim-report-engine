@@ -34,12 +34,30 @@ def build_metals_panel(
     symbols: list[str],
     summary_label: str,
     element_service: ElementService,
+    prep_text: str = "Evaporation",
+    additional_element_names: list[str] | None = None,
 ) -> ReportSection:
     """symbols: element symbols in display order. summary_label: the text
     that appears in "AVERAGE / <summary_label>" and "TOTAL / <summary_label>"
     — e.g. "36 Tr.Elts" for the 10/26/36-Elements selections (all three
     render the same 36 analytes; only this label differs), "67 Tr.Elts",
     "USP Tr.Elts".
+
+    prep_text: the parenthesized method text in the footer ("Analysis by
+    ICPMS (<prep_text>)") — the catalog's real per-chemical/per-matrix prep
+    method (e.g. Chemical.metals_prep, or "Dilute and Shoot" for Water,
+    confirmed against real completed reports — see chemical_water_report_builder.py,
+    which computes this). Defaults to "Evaporation" to match current
+    practice for a chemical with no override on file.
+
+    additional_element_names: the free-text "Additional Elements (specify)"
+    request, if any — confirmed real (multiple real customers' reports):
+    rendered as a SEPARATE labeled block appended after this panel's own
+    footer, not merged into the panel's own analyte rows or its
+    AVERAGE/TOTAL summary. Uses the SAME prep_text as the main panel here
+    -- a customer-specific override (one real customer's additional
+    elements are actually run by a different method than its main panel)
+    is a deliberately deferred, separate piece of work.
     """
     section = ReportSection(id)
     row_builders.add_header_rows(section, "Element", "MDL")
@@ -53,8 +71,70 @@ def build_metals_panel(
         row_builders.add_analyte_row(section, element.name, element.symbol)
 
     _add_summary_rows(section, summary_label, first_data_row)
-    row_builders.add_footer_row(section, "Analysis by ICPMS (Evaporation)")
+    row_builders.add_footer_row(section, f"Analysis by ICPMS ({prep_text})")
 
+    if additional_element_names:
+        add_additional_elements_block(section, additional_element_names, element_service, prep_text)
+
+    return section
+
+
+def add_additional_elements_block(
+    section: ReportSection,
+    element_names: list[str],
+    element_service: ElementService,
+    prep_text: str,
+) -> None:
+    """Appends a labeled additional-elements block to an EXISTING metals
+    panel section, in place -- confirmed real layout (two different real
+    customers' reports, same shape both times): one blank row, one label
+    row ("Additional Elements" in column 4, no repeated column-header
+    row), one analyte row
+    per element (no per-element spec, no AVERAGE/TOTAL), one blank row,
+    then its own complete footer -- same shape as the panel's own footer,
+    just a second one.
+    """
+    section.add_row(row_builders.blank_row())
+    label_row = ReportRow(style_name="Normal")
+    label_row.set_value(4, "Additional Elements")
+    section.add_row(label_row)
+
+    for name in element_names:
+        element = element_service.get_by_name(name.strip())
+        if element is None:
+            raise ValueError(f"unknown additional element name: {name!r}")
+        row_builders.add_analyte_row(section, element.name, element.symbol)
+
+    section.add_row(row_builders.blank_row())
+    row_builders.add_footer_row(section, f"Analysis by ICPMS ({prep_text})")
+
+
+def build_additional_elements_only_panel(
+    id: str,
+    element_names: list[str],
+    element_service: ElementService,
+    prep_text: str,
+) -> ReportSection:
+    """The shape when additional elements are the ONLY thing requested on a
+    sample -- no catalog metals-panel selection at all -- confirmed real
+    (a real Water customer's sample requesting only two free-text elements,
+    no "# of Elements" selection at all). A full Sample-ID/column-header
+    pair around
+    the requested elements, but NO "Additional Elements" label (that label
+    is specific to the two-block shape used when a catalog panel is ALSO
+    present) and no AVERAGE/TOTAL summary (there's no real "panel" being
+    summarized, just a short ad hoc list).
+    """
+    section = ReportSection(id)
+    row_builders.add_header_rows(section, "Element", "MDL")
+
+    for name in element_names:
+        element = element_service.get_by_name(name.strip())
+        if element is None:
+            raise ValueError(f"unknown additional element name: {name!r}")
+        row_builders.add_analyte_row(section, element.name, element.symbol)
+
+    row_builders.add_footer_row(section, f"Analysis by ICPMS ({prep_text})")
     return section
 
 

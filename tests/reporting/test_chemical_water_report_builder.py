@@ -33,13 +33,22 @@ class _FakeElement:
 class _FakeElementService:
     """Resolves ANY symbol to an element named after itself -- good enough
     for dispatch tests, which only care that the right builder ran, not
-    real periodic-table names."""
+    real periodic-table names. get_by_name/load_element resolve a small
+    fixed catalog for the additional-elements tests specifically."""
+
+    _BY_ID = {101: _FakeElement("Antimony", "Sb"), 102: _FakeElement("Arsenic", "As")}
 
     def get_by_symbol(self, symbol: str):
         return _FakeElement(name=symbol, symbol=symbol)
 
+    def get_by_name(self, name: str):
+        return next((e for e in self._BY_ID.values() if e.name == name), None)
 
-def _sample(analysis_ids: tuple[int, ...]) -> TRSample:
+    def load_element(self, element_id: int):
+        return self._BY_ID.get(element_id)
+
+
+def _sample(analysis_ids: tuple[int, ...], additional_element_ids: tuple[int, ...] = ()) -> TRSample:
     return TRSample(
         sample_name="S-1",
         form_chemical_name="Test Matrix",
@@ -48,6 +57,7 @@ def _sample(analysis_ids: tuple[int, ...]) -> TRSample:
         requested_time="",
         chemical_id=1,
         analysis_ids=analysis_ids,
+        additional_element_ids=additional_element_ids,
     )
 
 
@@ -226,3 +236,105 @@ def test_unsupported_analysis_raises_clear_error():
     svc = _FakeAnalysisService({1: "Sn+2 Iodine Titration"})
     with pytest.raises(ValueError, match="Sn\\+2 Iodine Titration"):
         orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+
+
+# ---------------------------------------------------------------------------
+# build_sections -- Assay / Titrations (confirmed real: 3 different real
+# Chemical customers' reports)
+# ---------------------------------------------------------------------------
+
+def test_assay_dispatches_to_titrations_builder():
+    svc = _FakeAnalysisService({1: "Assay"})
+    sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+    assert len(sections) == 1
+    assert sections[0].rows[-1].get_value(1) == "Analysis by Auto-Titrator"
+
+
+def test_can_build_sections_true_for_assay():
+    svc = _FakeAnalysisService({1: "Assay"})
+    assert orchestrator.can_build_sections(_sample((1,)), svc) is True
+
+
+# ---------------------------------------------------------------------------
+# build_sections -- "5 Anions + MS Authentication" (confirmed real: one
+# real Chemical customer's report)
+# ---------------------------------------------------------------------------
+
+def test_5_anions_plus_ms_authentication_renders_the_same_panel_as_plain_5_anions():
+    svc = _FakeAnalysisService({1: "5 Anions + MS Authentication"})
+    with_ms = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+    svc2 = _FakeAnalysisService({1: "5 Anions"})
+    plain = orchestrator.build_sections(_sample((1,)), svc2, _FakeElementService())
+    with_ms_rows = [(r.get_value(2), r.get_value(3)) for r in with_ms[0].rows if r.style_name == "DataLabel"]
+    plain_rows = [(r.get_value(2), r.get_value(3)) for r in plain[0].rows if r.style_name == "DataLabel"]
+    assert with_ms_rows == plain_rows
+
+
+# ---------------------------------------------------------------------------
+# build_sections -- metals_prep_text (confirmed real: a real Chemical
+# customer's report used "Evaporation"; real Water customers' reports use
+# "Dilute and Shoot")
+# ---------------------------------------------------------------------------
+
+def test_metals_panel_uses_default_prep_text_when_not_given():
+    svc = _FakeAnalysisService({1: "36 Elements"})
+    sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+    footer = next(r for r in sections[0].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1)))
+    assert footer.get_value(1) == "Analysis by ICPMS (Evaporation)"
+
+
+def test_metals_panel_uses_caller_supplied_prep_text():
+    svc = _FakeAnalysisService({1: "36 Elements"})
+    sections = orchestrator.build_sections(
+        _sample((1,)), svc, _FakeElementService(), metals_prep_text="Dilute and Shoot"
+    )
+    footer = next(r for r in sections[0].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1)))
+    assert footer.get_value(1) == "Analysis by ICPMS (Dilute and Shoot)"
+
+
+# ---------------------------------------------------------------------------
+# build_sections -- additional elements (confirmed real: several different
+# real customers' reports -- previously silently dropped entirely)
+# ---------------------------------------------------------------------------
+
+def test_additional_elements_attach_to_existing_metals_panel_as_second_block():
+    svc = _FakeAnalysisService({1: "36 Elements"})
+    sections = orchestrator.build_sections(_sample((1,), additional_element_ids=(101, 102)), svc, _FakeElementService())
+    assert len(sections) == 1  # still one section, not a separate one
+    section = sections[0]
+    label_row = next(r for r in section.rows if r.get_value(4) == "Additional Elements")
+    idx = section.rows.index(label_row)
+    sb_row, as_row = section.rows[idx + 1], section.rows[idx + 2]
+    assert (sb_row.get_value(2), sb_row.get_value(3)) == ("Antimony", "Sb")
+    assert (as_row.get_value(2), as_row.get_value(3)) == ("Arsenic", "As")
+    # two independent footers: the main panel's, then the additional block's
+    footers = [r.get_value(1) for r in section.rows if r.get_value(1) and "Analysis by" in str(r.get_value(1))]
+    assert footers == ["Analysis by ICPMS (Evaporation)", "Analysis by ICPMS (Evaporation)"]
+
+
+def test_additional_elements_alone_build_a_standalone_minimal_panel():
+    """Confirmed real (a real Water customer's sample requesting only
+    free-text elements): no catalog panel selected at all, just additional
+    elements."""
+    svc = _FakeAnalysisService({})
+    sections = orchestrator.build_sections(
+        _sample((), additional_element_ids=(101, 102)), svc, _FakeElementService(),
+        metals_prep_text="Dilute and Shoot",
+    )
+    assert len(sections) == 1
+    section = sections[0]
+    assert not any(r.get_value(4) == "Additional Elements" for r in section.rows)  # no label -- standalone shape
+    assert not any(r.get_value(2) and "AVERAGE" in str(r.get_value(2)) for r in section.rows)  # no summary
+    assert section.rows[-1].get_value(1) == "Analysis by ICPMS (Dilute and Shoot)"
+
+
+def test_no_additional_elements_no_change_in_section_count():
+    svc = _FakeAnalysisService({1: "36 Elements"})
+    sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+    assert len(sections) == 1
+    assert not any(r.get_value(4) == "Additional Elements" for r in sections[0].rows)
+
+
+def test_can_build_sections_true_for_additional_elements_only():
+    svc = _FakeAnalysisService({})
+    assert orchestrator.can_build_sections(_sample((), additional_element_ids=(101,)), svc) is True

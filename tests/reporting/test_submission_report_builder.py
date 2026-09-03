@@ -29,6 +29,7 @@ class _FakeAnalysisService:
 class _FakeChemical:
     id: int
     name: str
+    metals_prep: str = ""
 
 
 class _FakeChemicalService:
@@ -258,6 +259,43 @@ def test_wafer_sheet_uses_wafer_column_widths():
         submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
     )
     assert sheets[0].column_widths == column_widths.WAFER
+
+
+def test_chemical_sample_uses_the_resolved_chemicals_catalog_prep():
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid", metals_prep="ICPMS Digestion")})
+    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
+    footer = next(
+        r for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
+    )
+    assert footer.get_value(1) == "Analysis by ICPMS (ICPMS Digestion)"
+
+
+def test_chemical_sample_with_blank_catalog_prep_defaults_to_evaporation():
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid")})  # metals_prep="" (blank)
+    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
+    footer = next(
+        r for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
+    )
+    assert footer.get_value(1) == "Analysis by ICPMS (Evaporation)"
+
+
+def test_water_sample_always_uses_dilute_and_shoot_no_chemical_lookup():
+    samples = [_sample("S-001", analysis_ids=(1,))]
+    submission = _submission(samples, request_type=RequestType.WATER)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    footer = next(
+        r for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
+    )
+    assert footer.get_value(1) == "Analysis by ICPMS (Dilute and Shoot)"
 
 
 def test_sheet_names_sanitize_illegal_characters():
