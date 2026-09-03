@@ -21,6 +21,7 @@ from slim_domain.domain.customer.customer_repository import _CustomerRow, _FormC
 from slim_domain.domain.element.element_repository import _ElementRow
 
 from slim_report_engine.cli import main
+from slim_report_engine.lab_identity import LAB_HEADER_LINES
 from slim_report_engine.reporting.presets import analyte_presets
 
 _FORM_PATH = (
@@ -102,6 +103,8 @@ def test_cli_success_writes_output_and_exits_zero(tmp_path, capsys):
     assert "S-001" in wb.sheetnames
     ws = wb["S-001"]
     assert ws.oddHeader.center.text == "Test Acid Matrix"
+    assert ws.oddHeader.left.text == "\n".join(LAB_HEADER_LINES)
+    assert "Acme Corp" in ws.oddHeader.right.text
     assert ws["A1"].value == "Test Acid Matrix"
     # The standard "mmddyy-Chemical-Customer-SampleID" sample-ID string,
     # stamped into the section's own "Sample Identification:" row.

@@ -41,6 +41,7 @@ from slim_domain.domain.tr.tr_form_input_resolver import (
 )
 from slim_domain.domain.tr.tr_submission_service import TRSubmissionService
 
+from slim_report_engine.lab_identity import LAB_HEADER_LINES
 from slim_report_engine.reporting import report_writer
 from slim_report_engine.reporting.submission_report_builder import build_submission_sheets
 
@@ -95,6 +96,7 @@ def run(input_path: Path, output_path: Path, db_url: str | None = None) -> Path:
             customer_name=customer.name,
             customer_address_line1=customer.street_address,
             customer_address_line2=customer.city,
+            lab_header_lines=LAB_HEADER_LINES,
         )
         for cell_address, value in sheet.extra_cell_stamps:
             ws[cell_address] = value
