@@ -103,7 +103,7 @@ _UNCONDITIONALLY_SUPPORTED = {
     "Total Silicon", "Dissolved Silicon", "Dissolved and Total Si",
     "TOC", "Alkalinity", "Bacteria Count",
     "Conductivity", "Density", "Liquid Particle Count", "APHA Color",
-    "pH", "Assay",
+    "pH", "Assay", "GC-FID",
 }
 
 
@@ -239,6 +239,12 @@ def build_sections(
             sections.append(misc_analysis_section_builder.build_apha(name))
         elif name == "Assay":
             sections.append(titrations_section_builder.build_assay(name))
+        elif name == "GC-FID":
+            # Confirmed real (a real Chemical customer's intake form uses
+            # "GC-FID" verbatim as a Titrations selection) -- see
+            # titrations_section_builder.py's DISPATCH STATUS note, now
+            # updated: this is no longer a guess.
+            sections.append(titrations_section_builder.build_gc_fid(name))
         else:
             raise ValueError(
                 f"analysis {name!r} is not yet supported by this architecture -- "

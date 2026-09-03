@@ -255,6 +255,20 @@ def test_can_build_sections_true_for_assay():
     assert orchestrator.can_build_sections(_sample((1,)), svc) is True
 
 
+def test_gc_fid_dispatches_to_titrations_builder():
+    """Confirmed real: a real Chemical customer's intake form uses
+    "GC-FID" verbatim as a Titrations selection."""
+    svc = _FakeAnalysisService({1: "GC-FID"})
+    sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+    assert len(sections) == 1
+    assert sections[0].rows[-1].get_value(1) == "Analysis by GC-FID (average of triplicates)"
+
+
+def test_can_build_sections_true_for_gc_fid():
+    svc = _FakeAnalysisService({1: "GC-FID"})
+    assert orchestrator.can_build_sections(_sample((1,)), svc) is True
+
+
 # ---------------------------------------------------------------------------
 # build_sections -- "5 Anions + MS Authentication" (confirmed real: one
 # real Chemical customer's report)

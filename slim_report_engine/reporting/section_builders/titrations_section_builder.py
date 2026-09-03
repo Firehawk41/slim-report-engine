@@ -10,15 +10,15 @@ name, are real placeholders manually filled in by staff per sample after
 generation — not resolved by any code path, so they're reproduced verbatim
 here (same category as Wafer's own hand-filled notes).
 
-DISPATCH STATUS: only "Assay" is wired into chemical_water_report_builder.py
-so far — confirmed against real completed reports from 3 different real
-Chemical customers. build_kf_water/build_gc_fid are ported and ready
-(their shape is directly from the real VBA source), but not yet
-dispatched: no real submitted report in hand confirms the exact catalog
-analysis-name string for either ("Karl Fischer"? "KF Water"? "GC-FID" is
-plausible from the intake form's own example row, but that's instructional
-text, not a confirmed real submission) — wire them once a real one shows
-up rather than guessing the dispatch key.
+DISPATCH STATUS: "Assay" and "GC-FID" are both wired into
+chemical_water_report_builder.py — confirmed against real completed
+reports (Assay: 3 different real Chemical customers; GC-FID: one real
+Chemical customer's intake form uses "GC-FID" verbatim as a Titrations
+selection). build_kf_water is ported and ready (its shape is directly
+from the real VBA source) but not yet dispatched: no real submitted
+report in hand confirms its exact catalog analysis-name string ("Karl
+Fischer"? "KF Water"? something else?) — wire it once a real one shows up
+rather than guessing the dispatch key.
 
 EXCLUDED (customer-specific edge cases, deferred, same bucket as other
 customer-specific edge cases already out of scope): bespoke titration
