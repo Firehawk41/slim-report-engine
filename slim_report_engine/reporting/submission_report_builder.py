@@ -21,6 +21,21 @@ VBA source's SetChemicalSheetName/SetWaterSheetName have additional
 fidelity (illegal-character scrubbing matching a specific rule set,
 28-char truncation, per-duplicate-matrix incrementing) not yet ported
 here — a known, deliberate simplification, not assumed equivalent.
+
+SAMPLE-ID STRING ECHO: row_builders.add_header_rows/add_simple_header_row
+deliberately leave column 4 of each section's own "Sample Identification:"
+row blank -- "filled in by the caller assembling the whole sheet, not
+here... the sample-level identity string every section on a sheet
+shares" (see row_builders.py). This module is that caller: for generic
+Chemical/Water it computes the standard "mmddyy-Chemical-Customer-SampleID"
+string (sample_string_builder.build_sample_string -- the SAME format DM5
+non-routine and Wafer use, just with different inputs) and stamps it into
+EVERY section's row 1 / column 4, matching the "every section shares it"
+framing. Cell A1 also gets a title stamp on every path (matching the
+legacy macro's `.Range("A1").Value = ...`) -- DM5's own first section
+already carries this internally (its TitleRow is row 1 of the section,
+landing on A1 naturally), so only generic Chemical/Water and Wafer need
+an explicit extra stamp for it.
 """
 
 from __future__ import annotations
@@ -37,6 +52,7 @@ from slim_domain.domain.tr.tr_submission import TRSubmission
 from slim_report_engine.reporting import chemical_water_report_builder, dm5_non_routine_report_builder
 from slim_report_engine.reporting import wafer_submission_builder
 from slim_report_engine.reporting.report_section import ReportSection
+from slim_report_engine.reporting.sample_string_builder import build_sample_string
 
 _DM5_CUSTOMER_NAMES = {"DM5N", "DM5S"}
 
@@ -46,10 +62,9 @@ class OutputSheet:
     name: str
     sections: tuple[ReportSection, ...]
     header_title: str
-    # (cell_address, value) -- only DM5 shapes need a sample-ID stamped
-    # into a specific cell after the section content is written; None
-    # for every other shape.
-    sample_id_stamp: tuple[str, str] | None = None
+    # (cell_address, value) pairs to write AFTER the section content --
+    # e.g. A1's title, DM5's sample-ID cell. Applied in order.
+    extra_cell_stamps: tuple[tuple[str, str], ...] = ()
 
 
 def build_submission_sheets(
@@ -85,15 +100,28 @@ def build_submission_sheets(
                     name=name,
                     sections=result.sections,
                     header_title=result.chemical_label,
-                    sample_id_stamp=(result.name_cell_address, result.sample_string),
+                    extra_cell_stamps=((result.name_cell_address, result.sample_string),),
                 )
             )
             continue
 
         sections = chemical_water_report_builder.build_sections(sample, analysis_service, element_service)
-        title = sample.form_chemical_name if submission.request_type == RequestType.CHEMICAL else "Water"
+        chemical_name = sample.form_chemical_name if submission.request_type == RequestType.CHEMICAL else "Water"
+        sample_string = build_sample_string(
+            submission.date_received, chemical_name, customer.name, sample.sample_name
+        )
+        for section in sections:
+            if section.rows:
+                section.rows[0].set_value(4, sample_string)
         name = _dedupe_name(_sanitize_sheet_name(sample.sample_name), used_names)
-        sheets.append(OutputSheet(name=name, sections=tuple(sections), header_title=title))
+        sheets.append(
+            OutputSheet(
+                name=name,
+                sections=tuple(sections),
+                header_title=chemical_name,
+                extra_cell_stamps=(("A1", chemical_name),),
+            )
+        )
 
     return sheets
 
@@ -109,7 +137,14 @@ def _build_wafer_sheets(
     sheets: list[OutputSheet] = []
     for result in results:
         name = _dedupe_name(_sanitize_sheet_name(result.sheet_title), used_names)
-        sheets.append(OutputSheet(name=name, sections=(result.section,), header_title=result.sheet_title))
+        sheets.append(
+            OutputSheet(
+                name=name,
+                sections=(result.section,),
+                header_title=result.sheet_title,
+                extra_cell_stamps=(("A1", result.sheet_title),),
+            )
+        )
     return sheets
 
 

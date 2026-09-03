@@ -117,7 +117,36 @@ def test_generic_chemical_customer_one_sheet_per_sample():
     assert len(sheets) == 2
     assert sheets[0].name == "S-001"
     assert sheets[0].header_title == "Test Acid"
-    assert sheets[0].sample_id_stamp is None
+    assert sheets[0].extra_cell_stamps == (("A1", "Test Acid"),)
+
+
+def test_generic_chemical_sample_string_stamped_into_every_section():
+    """The behavior the user asked to confirm/fix: the standard
+    "mmddyy-Chemical-Customer-SampleID" string (built the same way DM5/
+    Wafer build theirs) lands in column 4 of EVERY section's own
+    "Sample Identification:" row -- not just the sheet's first section --
+    matching row_builders.py's "every section on a sheet shares it"
+    framing."""
+    samples = [_sample("S-001", analysis_ids=(1, 2), chemical_id=1, form_chemical_name="Test Acid Matrix")]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "TOC", 2: "Alkalinity"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    expected = "030526-Test Acid Matrix-Acme Corp-S-001"
+    assert len(sheets[0].sections) == 2
+    for section in sheets[0].sections:
+        assert section.rows[0].get_value(4) == expected
+
+
+def test_water_sample_string_uses_the_literal_water_chemical_name():
+    samples = [_sample("S-001", analysis_ids=(1,))]
+    submission = _submission(samples, request_type=RequestType.WATER)
+    analysis_svc = _FakeAnalysisService({1: "TOC"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert sheets[0].sections[0].rows[0].get_value(4) == "030526-Water-Acme Corp-S-001"
 
 
 def test_sample_with_multiple_independent_analyses_lands_on_one_sheet():
@@ -159,8 +188,8 @@ def test_dm5_customer_supported_chemical_routes_to_dm5_builder():
     )
     assert len(sheets) == 1
     assert sheets[0].name == "NH4OH"
-    assert sheets[0].sample_id_stamp is not None
-    cell_address, value = sheets[0].sample_id_stamp
+    assert len(sheets[0].extra_cell_stamps) == 1
+    cell_address, value = sheets[0].extra_cell_stamps[0]
     assert cell_address == "D5"
     assert "NH4OH" in value
 
@@ -184,7 +213,7 @@ def test_wafer_request_type_routes_to_wafer_builder_regardless_of_customer():
     )
     assert len(sheets) == 1
     assert sheets[0].header_title == "150mm Wafers"
-    assert sheets[0].sample_id_stamp is None
+    assert sheets[0].extra_cell_stamps == (("A1", "150mm Wafers"),)
 
 
 def test_duplicate_sheet_names_get_deduplicated():

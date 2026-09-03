@@ -96,8 +96,7 @@ def run(input_path: Path, output_path: Path, db_url: str | None = None) -> Path:
             customer_address_line1=customer.street_address,
             customer_address_line2=customer.city,
         )
-        if sheet.sample_id_stamp is not None:
-            cell_address, value = sheet.sample_id_stamp
+        for cell_address, value in sheet.extra_cell_stamps:
             ws[cell_address] = value
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

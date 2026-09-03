@@ -102,6 +102,10 @@ def test_cli_success_writes_output_and_exits_zero(tmp_path, capsys):
     assert "S-001" in wb.sheetnames
     ws = wb["S-001"]
     assert ws.oddHeader.center.text == "Test Acid Matrix"
+    assert ws["A1"].value == "Test Acid Matrix"
+    # The standard "mmddyy-Chemical-Customer-SampleID" sample-ID string,
+    # stamped into the section's own "Sample Identification:" row.
+    assert ws["D1"].value == "030526-Test Acid Matrix-Acme Corp-S-001"
 
 
 @pytest.mark.skipif(not _FORM_PATH.exists(), reason="real Chemical intake form not available in this environment")
