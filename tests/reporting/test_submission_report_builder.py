@@ -120,6 +120,26 @@ def test_generic_chemical_customer_one_sheet_per_sample():
     assert sheets[0].sample_id_stamp is None
 
 
+def test_sample_with_multiple_independent_analyses_lands_on_one_sheet():
+    """The behavior under test directly: a single physical sample
+    requesting several independent analyses (here 36 Elements, TOC, and
+    Alkalinity -- none of which combine like Conductivity+pH does) gets
+    exactly ONE OutputSheet carrying all of their sections, not one
+    sheet per analysis. Matches the real VBA architecture, which
+    creates one new sheet per SAMPLE ROW and unions every requested
+    analysis range onto that same sheet."""
+    samples = [_sample("S-001", analysis_ids=(1, 2, 3), chemical_id=1)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements", 2: "TOC", 3: "Alkalinity"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+
+    assert len(sheets) == 1  # one sheet total, not three
+    assert sheets[0].name == "S-001"
+    assert [s.id for s in sheets[0].sections] == ["36 Elements", "TOC", "Alkalinity"]
+
+
 def test_water_customer_header_title_is_water():
     samples = [_sample("S-001", analysis_ids=(1,))]
     submission = _submission(samples, request_type=RequestType.WATER)
