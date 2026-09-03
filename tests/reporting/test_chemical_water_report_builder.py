@@ -130,6 +130,16 @@ def test_4_anions_panel_has_4_rows_labeled_anion():
     assert len(data_rows) == 4
 
 
+def test_ion_panel_footer_includes_prep_text():
+    """Confirmed real (a real Chemical customer's 4-Anions report):
+    "Analysis by IC (<prep>)", not a bare "Analysis by IC" -- the same
+    prep text the sample's metals panel would use."""
+    svc = _FakeAnalysisService({1: "4 Anions"})
+    sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService(), metals_prep_text="Evaporation")
+    footer = next(r for r in sections[0].rows if r.get_value(1) and "Analysis by IC" in str(r.get_value(1)))
+    assert footer.get_value(1) == "Analysis by IC (Evaporation)"
+
+
 def test_gbp_panel_labeled_analyte():
     svc = _FakeAnalysisService({1: "GBP"})
     sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
@@ -165,7 +175,7 @@ def test_conductivity_alone():
     svc = _FakeAnalysisService({1: "Conductivity"})
     sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
     assert len(sections) == 1
-    footer = sections[0].rows[-1]
+    footer = sections[0].rows[-2]
     assert footer.get_value(1) == "Analysis by Conductivity Electrode"
 
 
@@ -177,7 +187,7 @@ def test_standalone_ph_dispatches_to_misc_analysis_not_electrical():
     assert len(sections) == 1
     header = sections[0].rows[1]
     assert header.get_value(2) == "pH"  # Misc Analysis's category label, not "Electrical Testing"
-    footer = sections[0].rows[-1]
+    footer = sections[0].rows[-2]
     assert footer.get_value(1) == "Analysis by pH Electrode"
 
 
@@ -187,7 +197,7 @@ def test_conductivity_and_ph_together_collapse_into_one_electrical_section():
     assert len(sections) == 1
     header = sections[0].rows[1]
     assert header.get_value(2) == "Electrical Testing"
-    footer = sections[0].rows[-1]
+    footer = sections[0].rows[-2]
     assert footer.get_value(1) == "Analysis by pH/Conductivity Electrode"
 
 
@@ -208,7 +218,7 @@ def test_density_lpc_apha_combine_freely_with_no_special_logic():
     svc = _FakeAnalysisService({1: "Density", 2: "Liquid Particle Count", 3: "APHA Color"})
     sections = orchestrator.build_sections(_sample((1, 2, 3)), svc, _FakeElementService())
     assert len(sections) == 3
-    footers = [s.rows[-1].get_value(1) for s in sections]
+    footers = [s.rows[-2].get_value(1) for s in sections]
     assert footers == [
         "Analysis by Gay-Lussac Pycnometer",
         "Analysis by Liquid Particle Counter.",
@@ -247,7 +257,7 @@ def test_assay_dispatches_to_titrations_builder():
     svc = _FakeAnalysisService({1: "Assay"})
     sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
     assert len(sections) == 1
-    assert sections[0].rows[-1].get_value(1) == "Analysis by Auto-Titrator"
+    assert sections[0].rows[-2].get_value(1) == "Analysis by Auto-Titrator"
 
 
 def test_can_build_sections_true_for_assay():
@@ -261,7 +271,7 @@ def test_gc_fid_dispatches_to_titrations_builder():
     svc = _FakeAnalysisService({1: "GC-FID"})
     sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
     assert len(sections) == 1
-    assert sections[0].rows[-1].get_value(1) == "Analysis by GC-FID (average of triplicates)"
+    assert sections[0].rows[-2].get_value(1) == "Analysis by GC-FID (average of triplicates)"
 
 
 def test_can_build_sections_true_for_gc_fid():
@@ -276,7 +286,7 @@ def test_moisture_karl_fischer_dispatches_to_titrations_builder():
     svc = _FakeAnalysisService({1: "Moisture (Karl Fischer)"})
     sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
     assert len(sections) == 1
-    assert sections[0].rows[-1].get_value(1) == "Analysis by KF-Titration"
+    assert sections[0].rows[-2].get_value(1) == "Analysis by KF-Titration"
 
 
 def test_can_build_sections_true_for_moisture_karl_fischer():
@@ -324,7 +334,7 @@ def test_metals_panel_uses_caller_supplied_prep_text():
 def test_metals_panel_uses_default_instrument_icpms_when_not_given():
     svc = _FakeAnalysisService({1: "36 Elements"})
     sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
-    assert "ICPMS" in sections[0].rows[-1].get_value(1)
+    assert "ICPMS" in sections[0].rows[-2].get_value(1)
 
 
 def test_metals_panel_uses_caller_supplied_instrument():
@@ -381,7 +391,7 @@ def test_additional_elements_alone_build_a_standalone_minimal_panel():
     section = sections[0]
     assert not any(r.get_value(4) == "Additional Elements" for r in section.rows)  # no label -- standalone shape
     assert not any(r.get_value(2) and "AVERAGE" in str(r.get_value(2)) for r in section.rows)  # no summary
-    assert section.rows[-1].get_value(1) == "Analysis by ICPMS (Dilute and Shoot)"
+    assert section.rows[-2].get_value(1) == "Analysis by ICPMS (Dilute and Shoot)"
 
 
 # ---------------------------------------------------------------------------
@@ -406,7 +416,7 @@ def test_additional_elements_prep_override_applies_to_standalone_panel_too():
         _sample((), additional_element_ids=(101, 102)), svc, _FakeElementService(),
         metals_prep_text="Dilute and Shoot", additional_elements_prep_text="Alternate Method",
     )
-    assert sections[0].rows[-1].get_value(1) == "Analysis by ICPMS (Alternate Method)"
+    assert sections[0].rows[-2].get_value(1) == "Analysis by ICPMS (Alternate Method)"
 
 
 def test_no_additional_elements_prep_override_falls_back_to_metals_prep_text():

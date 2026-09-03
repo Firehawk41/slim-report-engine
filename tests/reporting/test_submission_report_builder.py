@@ -130,15 +130,20 @@ def test_generic_chemical_customer_one_sheet_per_sample():
     assert sheets[0].name == "Test Acid 1"
     assert sheets[1].name == "Test Acid 2"
     assert sheets[0].header_title == "Test Acid"
-    assert sheets[0].extra_cell_stamps == (("A1", "Test Acid"),)
+    # No more separate "A1" stamp -- the header preamble's own title row
+    # sets column 1 of row 1 directly (see build_header_preamble).
+    assert sheets[0].extra_cell_stamps == ()
+    assert sheets[0].sections[0].id == "Header"
+    assert sheets[0].sections[0].rows[0].get_value(1) == "Test Acid"
 
 
 def test_generic_chemical_sample_string_stamped_into_every_section():
     """The behavior the user asked to confirm/fix: the standard
     "mmddyy-Chemical-Customer-SampleID" string (built the same way DM5/
-    Wafer build theirs) lands in column 4 of EVERY section's own
-    "Sample Identification:" row -- not just the sheet's first section --
-    matching row_builders.py's "every section on a sheet shares it"
+    Wafer build theirs) lands in column 4 of EVERY REAL section's own
+    "Sample Identification:" row -- not just the sheet's first real
+    section, and not the header preamble (which has no such row at all)
+    -- matching row_builders.py's "every section on a sheet shares it"
     framing."""
     samples = [_sample("S-001", analysis_ids=(1, 2), chemical_id=1, form_chemical_name="Test Acid Matrix")]
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
@@ -147,8 +152,9 @@ def test_generic_chemical_sample_string_stamped_into_every_section():
         submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
     )
     expected = "030526-Test Acid Matrix-Acme Corp-S-001"
-    assert len(sheets[0].sections) == 2
-    for section in sheets[0].sections:
+    real_sections = sheets[0].sections[1:]  # sections[0] is the header preamble
+    assert len(real_sections) == 2
+    for section in real_sections:
         assert section.rows[0].get_value(4) == expected
 
 
@@ -159,7 +165,7 @@ def test_water_sample_string_uses_the_literal_water_chemical_name():
     sheets = dispatcher.build_submission_sheets(
         submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
     )
-    assert sheets[0].sections[0].rows[0].get_value(4) == "030526-Water-Acme Corp-S-001"
+    assert sheets[0].sections[1].rows[0].get_value(4) == "030526-Water-Acme Corp-S-001"
 
 
 def test_sample_with_multiple_independent_analyses_lands_on_one_sheet():
@@ -179,7 +185,7 @@ def test_sample_with_multiple_independent_analyses_lands_on_one_sheet():
 
     assert len(sheets) == 1  # one sheet total, not three
     assert sheets[0].name == "Test Acid"  # only sample with this chemical matrix -- no numeric suffix
-    assert [s.id for s in sheets[0].sections] == ["36 Elements", "TOC", "Alkalinity"]
+    assert [s.id for s in sheets[0].sections] == ["Header", "36 Elements", "TOC", "Alkalinity"]
 
 
 def test_water_customer_header_title_is_water():
@@ -308,7 +314,7 @@ def test_chemical_sample_uses_the_resolved_chemicals_catalog_prep():
     chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid", metals_prep="ICPMS Digestion")})
     sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
     footer = next(
-        r for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
+        r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
     )
     assert footer.get_value(1) == "Analysis by ICPMS (ICPMS Digestion)"
 
@@ -322,7 +328,7 @@ def test_chemical_sample_uses_the_resolved_chemicals_catalog_instrument():
     analysis_svc = _FakeAnalysisService({1: "36 Elements"})
     chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid", metals_instrument="ICPOES")})
     sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
-    footer = next(r for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
+    footer = next(r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
     assert footer.get_value(1) == "Analysis by ICPOES (Evaporation)"
 
 
@@ -332,7 +338,7 @@ def test_chemical_sample_with_blank_catalog_instrument_defaults_to_icpms():
     analysis_svc = _FakeAnalysisService({1: "36 Elements"})
     chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid")})
     sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
-    footer = next(r for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
+    footer = next(r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
     assert "ICPMS" in footer.get_value(1)
 
 
@@ -343,7 +349,7 @@ def test_water_sample_always_uses_icpms_no_chemical_lookup():
     sheets = dispatcher.build_submission_sheets(
         submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
     )
-    footer = next(r for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
+    footer = next(r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
     assert "ICPMS" in footer.get_value(1)
 
 
@@ -354,7 +360,7 @@ def test_chemical_sample_with_blank_catalog_prep_defaults_to_evaporation():
     chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid")})  # metals_prep="" (blank)
     sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
     footer = next(
-        r for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
+        r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
     )
     assert footer.get_value(1) == "Analysis by ICPMS (Evaporation)"
 
@@ -367,7 +373,7 @@ def test_water_sample_always_uses_dilute_and_shoot_no_chemical_lookup():
         submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
     )
     footer = next(
-        r for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
+        r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
     )
     assert footer.get_value(1) == "Analysis by ICPMS (Dilute and Shoot)"
 
@@ -387,7 +393,7 @@ def test_customer_additional_elements_prep_overrides_only_the_second_footer():
         submission, customer_with_override, chemical_svc, analysis_svc, _FakeElementService()
     )
     footers = [
-        r.get_value(1) for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
+        r.get_value(1) for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
     ]
     assert footers == ["Analysis by ICPMS (Evaporation)", "Analysis by ICPMS (Alternate Method)"]
 
@@ -401,7 +407,7 @@ def test_customer_with_no_additional_elements_prep_override_uses_same_prep_both_
         submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService()
     )
     footers = [
-        r.get_value(1) for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
+        r.get_value(1) for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
     ]
     assert footers == ["Analysis by ICPMS (Evaporation)", "Analysis by ICPMS (Evaporation)"]
 

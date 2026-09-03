@@ -85,8 +85,15 @@ def run(input_path: Path, output_path: Path, db_url: str | None = None) -> Path:
     if not sheets:
         raise ReportEngineError(f"no samples found in {input_path.name} -- nothing to write.")
 
-    wb = openpyxl.Workbook()
-    wb.remove(wb.active)
+    # Confirmed real (every completed report checked): the filled-in
+    # Testing Request form itself is appended as the LAST tab of the
+    # output workbook. Building on top of the loaded input workbook
+    # (rather than a fresh one) keeps that sheet's real formatting,
+    # formulas, and dropdowns exactly as submitted -- no manual
+    # cell-by-cell copy needed, which openpyxl has no built-in support
+    # for across two separate workbook objects anyway.
+    wb = openpyxl.load_workbook(input_path)
+    form_sheet_name = _find_form_sheet_name(wb)
     for sheet in sheets:
         ws = wb.create_sheet(sheet.name)
         report_writer.apply_column_widths(ws, sheet.column_widths)
@@ -102,9 +109,24 @@ def run(input_path: Path, output_path: Path, db_url: str | None = None) -> Path:
         for cell_address, value in sheet.extra_cell_stamps:
             ws[cell_address] = value
 
+    if form_sheet_name is not None:
+        wb.move_sheet(form_sheet_name, offset=len(wb.sheetnames))
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(output_path)
     return output_path
+
+
+def _find_form_sheet_name(wb: openpyxl.Workbook) -> str | None:
+    """Same detection rule as slim-domain's TRSubmissionService (the first
+    sheet whose D3 cell contains "Testing Request Form") -- reimplemented
+    here rather than imported since it needs a real (non-read-only)
+    Worksheet object to check the same file build_from_file already
+    parsed in read-only mode."""
+    for ws in wb.worksheets:
+        if "Testing Request Form" in str(ws["D3"].value or ""):
+            return ws.title
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:

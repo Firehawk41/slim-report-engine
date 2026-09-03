@@ -18,13 +18,17 @@ def test_build_ion_panel_has_no_average_total_summary():
             assert "TOTAL" not in value
 
 
-def test_build_ion_panel_ends_directly_at_footer():
+def test_build_ion_panel_footer_has_blank_rows_before_and_after():
+    """Confirmed real (every ion panel checked): exactly one blank row
+    separates the last analyte row from "Analysis by ...", and one more
+    follows it -- add_footer_row supplies both automatically."""
     analytes = [Analyte("Chloride", "Cl", 2)]
     section = builder.build_ion_panel("Anions", "Anion", analytes, "Analysis by IC")
-    # top, header, Chloride, footer -- no blank spacer rows
-    assert section.row_count == 4
-    footer = section.rows[-1]
+    # top, header, Chloride, blank, footer, blank
+    assert section.row_count == 6
+    footer = section.rows[-2]
     assert footer.get_value(1) == "Analysis by IC"
+    assert section.rows[-1].values == {}
 
 
 def test_build_ion_panel_rows_preserve_analyte_order():

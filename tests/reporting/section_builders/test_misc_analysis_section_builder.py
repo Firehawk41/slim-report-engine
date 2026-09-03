@@ -11,7 +11,7 @@ def test_ph_block_is_distinct_from_electrical_ph():
     assert header.get_value(4) == "Result"
     note = section.rows[3]
     assert note.get_value(1) == "Dimensionless quantity"
-    footer = section.rows[-1]
+    footer = section.rows[-2]
     assert footer.get_value(1) == "Analysis by pH Electrode"
 
 
@@ -20,7 +20,7 @@ def test_density():
     data = section.rows[2]
     assert data.get_value(2) == "Density of solution"
     assert data.get_value(3) == "(g/mL)"
-    footer = section.rows[-1]
+    footer = section.rows[-2]
     assert footer.get_value(1) == "Analysis by Gay-Lussac Pycnometer"
 
 
@@ -41,5 +41,5 @@ def test_apha():
     section = builder.build_apha("APHA")
     data = section.rows[2]
     assert data.get_value(2) == "APHA number"
-    footer = section.rows[-1]
+    footer = section.rows[-2]
     assert footer.get_value(1) == "Analysis by UV-Vis (average of six replicates)"

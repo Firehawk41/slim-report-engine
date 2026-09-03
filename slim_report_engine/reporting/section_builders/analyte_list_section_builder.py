@@ -99,14 +99,15 @@ def add_additional_elements_block(
 ) -> None:
     """Appends a labeled additional-elements block to an EXISTING metals
     panel section, in place -- confirmed real layout (two different real
-    customers' reports, same shape both times): one blank row, one label
-    row ("Additional Elements" in column 4, no repeated column-header
-    row), one analyte row
-    per element (no per-element spec, no AVERAGE/TOTAL), one blank row,
+    customers' reports, same shape both times): one blank row (already
+    provided by the panel's own preceding add_footer_row call -- no
+    explicit blank added here, to avoid a double gap), one label row
+    ("Additional Elements" in column 4, no repeated column-header row),
+    one analyte row per element (no per-element spec, no AVERAGE/TOTAL),
     then its own complete footer -- same shape as the panel's own footer,
-    just a second one.
+    just a second one (add_footer_row supplies its own leading/trailing
+    blank rows).
     """
-    section.add_row(row_builders.blank_row())
     label_row = ReportRow(style_name="Normal")
     label_row.set_value(4, "Additional Elements")
     section.add_row(label_row)
@@ -117,7 +118,6 @@ def add_additional_elements_block(
             raise ValueError(f"unknown additional element name: {name!r}")
         row_builders.add_analyte_row(section, element.name, element.symbol)
 
-    section.add_row(row_builders.blank_row())
     row_builders.add_footer_row(section, f"Analysis by {instrument} ({prep_text})")
 
 

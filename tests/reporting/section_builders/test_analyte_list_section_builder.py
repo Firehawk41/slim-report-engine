@@ -35,8 +35,11 @@ def test_build_metals_panel_header_and_footer():
     assert top.get_value(1) == "Specification"
     assert header.get_value(2) == "Element"
     assert header.get_value(6) == "MDL"
-    footer = section.rows[-1]
+    # add_footer_row appends a trailing blank row (the confirmed real gap
+    # before whatever comes next), so the footer itself is second-to-last.
+    footer = section.rows[-2]
     assert footer.get_value(1) == "Analysis by ICPMS (Evaporation)"
+    assert section.rows[-1].values == {}  # trailing blank
 
 
 def test_build_metals_panel_adds_one_row_per_symbol_in_order():
@@ -81,7 +84,7 @@ def test_summary_formulas_are_relative_r1c1_and_cover_the_data_rows():
 
 def test_build_metals_panel_default_prep_text_is_evaporation():
     section = builder.build_metals_panel("36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService())
-    footer = section.rows[-1]
+    footer = section.rows[-2]
     assert footer.get_value(1) == "Analysis by ICPMS (Evaporation)"
 
 
@@ -89,7 +92,7 @@ def test_build_metals_panel_custom_prep_text():
     section = builder.build_metals_panel(
         "36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService(), prep_text="Dilute and Shoot"
     )
-    footer = section.rows[-1]
+    footer = section.rows[-2]
     assert footer.get_value(1) == "Analysis by ICPMS (Dilute and Shoot)"
 
 
@@ -97,7 +100,7 @@ def test_build_metals_panel_custom_instrument():
     section = builder.build_metals_panel(
         "36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService(), instrument="ICPOES"
     )
-    footer = section.rows[-1]
+    footer = section.rows[-2]
     assert footer.get_value(1) == "Analysis by ICPOES (Evaporation)"
 
 
@@ -113,14 +116,14 @@ def test_build_metals_panel_instrument_applies_to_additional_elements_block_too(
 def test_add_additional_elements_block_default_instrument_is_icpms():
     section = builder.build_metals_panel("36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService())
     builder.add_additional_elements_block(section, ["Antimony"], _FakeElementService(), "Evaporation")
-    assert section.rows[-1].get_value(1) == "Analysis by ICPMS (Evaporation)"
+    assert section.rows[-2].get_value(1) == "Analysis by ICPMS (Evaporation)"
 
 
 def test_build_additional_elements_only_panel_custom_instrument():
     section = builder.build_additional_elements_only_panel(
         "Additional Elements", ["Antimony"], _FakeElementService(), "Dilute and Shoot", instrument="ICPOES"
     )
-    assert section.rows[-1].get_value(1) == "Analysis by ICPOES (Dilute and Shoot)"
+    assert section.rows[-2].get_value(1) == "Analysis by ICPOES (Dilute and Shoot)"
 
 
 def test_build_metals_panel_with_additional_elements_appends_labeled_block():
@@ -128,24 +131,26 @@ def test_build_metals_panel_with_additional_elements_appends_labeled_block():
         "36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService(),
         additional_element_names=["Antimony", "Arsenic"],
     )
-    # rows: top, header, Al, blank, AVERAGE, TOTAL, blank, footer,
-    #       blank, label, Sb, As, blank, footer
-    label_row = section.rows[-5]
+    # rows: top, header, Al, blank, AVERAGE, TOTAL, blank, footer, blank
+    #       (add_footer_row's own trailing gap, doubling as the gap before
+    #       the label), label, Sb, As, blank (auto), footer2, blank (trailing)
+    label_row = section.rows[-6]
     assert label_row.get_value(4) == "Additional Elements"
-    sb_row, as_row = section.rows[-4], section.rows[-3]
+    sb_row, as_row = section.rows[-5], section.rows[-4]
     assert (sb_row.get_value(2), sb_row.get_value(3)) == ("Antimony", "Sb")
     assert (as_row.get_value(2), as_row.get_value(3)) == ("Arsenic", "As")
-    assert section.rows[-1].get_value(1) == "Analysis by ICPMS (Evaporation)"
+    assert section.rows[-2].get_value(1) == "Analysis by ICPMS (Evaporation)"
+    assert section.rows[-1].values == {}  # trailing blank
     # the main panel's own footer is untouched, still present before the block
-    main_footer = section.rows[-7]
+    main_footer = section.rows[-8]
     assert main_footer.get_value(1) == "Analysis by ICPMS (Evaporation)"
 
 
 def test_build_metals_panel_without_additional_elements_has_no_extra_block():
     section = builder.build_metals_panel("36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService())
-    assert section.rows[-1].get_value(1) == "Analysis by ICPMS (Evaporation)"
-    # top, header, Al, blank, AVERAGE, TOTAL, blank, footer == 8 rows
-    assert len(section.rows) == 8
+    assert section.rows[-2].get_value(1) == "Analysis by ICPMS (Evaporation)"
+    # top, header, Al, blank, AVERAGE, TOTAL, blank, footer, blank == 9 rows
+    assert len(section.rows) == 9
 
 
 def test_add_additional_elements_block_unknown_name_raises():
@@ -158,12 +163,13 @@ def test_build_additional_elements_only_panel_has_no_summary_or_label_row():
     section = builder.build_additional_elements_only_panel(
         "Additional Elements", ["Antimony", "Arsenic"], _FakeElementService(), "Dilute and Shoot"
     )
-    # top, header, Sb, As, footer == 5 rows -- no blank/AVERAGE/TOTAL/label
-    assert len(section.rows) == 5
+    # top, header, Sb, As, blank (auto), footer, blank (trailing) == 7 rows
+    # -- no AVERAGE/TOTAL/label
+    assert len(section.rows) == 7
     sb_row, as_row = section.rows[2], section.rows[3]
     assert (sb_row.get_value(2), sb_row.get_value(3)) == ("Antimony", "Sb")
     assert (as_row.get_value(2), as_row.get_value(3)) == ("Arsenic", "As")
-    assert section.rows[-1].get_value(1) == "Analysis by ICPMS (Dilute and Shoot)"
+    assert section.rows[-2].get_value(1) == "Analysis by ICPMS (Dilute and Shoot)"
 
 
 def test_build_additional_elements_only_panel_unknown_name_raises():

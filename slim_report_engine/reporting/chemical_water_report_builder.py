@@ -205,28 +205,28 @@ def build_sections(
             )
             sections.append(metals_panel_section)
         elif name == "4 Anions":
-            sections.append(_ion_panel(name, "Anion", ion_presets.anions_4()))
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_4(), metals_prep_text))
         elif name == "5 Anions":
-            sections.append(_ion_panel(name, "Anion", ion_presets.anions_5()))
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_5(), metals_prep_text))
         elif name == "5 Anions + MS Authentication":
             # Confirmed real: identical panel content to plain "5 Anions"
             # -- see module docstring's "5 ANIONS + MS AUTHENTICATION"
             # section for why the appendix isn't reproduced here.
-            sections.append(_ion_panel(name, "Anion", ion_presets.anions_5()))
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_5(), metals_prep_text))
         elif name == "7 Anions":
-            sections.append(_ion_panel(name, "Anion", ion_presets.anions_7()))
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_7(), metals_prep_text))
         elif name == "Anions":
-            sections.append(_ion_panel(name, "Anion", ion_presets.anions_master()))
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_master(), metals_prep_text))
         elif name == "6 Cations":
-            sections.append(_ion_panel(name, "Cation", ion_presets.cations_6()))
+            sections.append(_ion_panel(name, "Cation", ion_presets.cations_6(), metals_prep_text))
         elif name == "NH4":
-            sections.append(_ion_panel(name, "Cation", ion_presets.cations_nh4()))
+            sections.append(_ion_panel(name, "Cation", ion_presets.cations_nh4(), metals_prep_text))
         elif name == "Methylamines":
-            sections.append(_ion_panel(name, "Cation", ion_presets.cations_methylamines()))
+            sections.append(_ion_panel(name, "Cation", ion_presets.cations_methylamines(), metals_prep_text))
         elif name == "Cations":
-            sections.append(_ion_panel(name, "Cation", ion_presets.cations_master()))
+            sections.append(_ion_panel(name, "Cation", ion_presets.cations_master(), metals_prep_text))
         elif name == "GBP":
-            sections.append(_ion_panel(name, "Analyte", ion_presets.gbp_group()))
+            sections.append(_ion_panel(name, "Analyte", ion_presets.gbp_group(), metals_prep_text))
         elif name in ("Total Silicon", "Dissolved Silicon", "Dissolved and Total Si"):
             # Total/Dissolved Silicon share ONE build_silicon call (it
             # decides internally whether to add the Colloidal Silica row)
@@ -299,8 +299,11 @@ def build_sections(
     return sections
 
 
-def _ion_panel(name: str, category_label: str, analytes) -> ReportSection:
-    return ion_list_section_builder.build_ion_panel(name, category_label, analytes, "Analysis by IC")
+def _ion_panel(name: str, category_label: str, analytes, prep_text: str) -> ReportSection:
+    # Confirmed real (a real Chemical customer's 4-Anions report):
+    # "Analysis by IC (<prep>)", not a bare "Analysis by IC" -- the same
+    # prep text the sample's metals panel would use.
+    return ion_list_section_builder.build_ion_panel(name, category_label, analytes, f"Analysis by IC ({prep_text})")
 
 
 def _resolve_additional_element_names(sample: TRSample, element_service: ElementService) -> list[str]:

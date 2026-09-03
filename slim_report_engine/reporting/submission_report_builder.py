@@ -54,7 +54,7 @@ from slim_domain.domain.tr.tr_sample import TRSample
 from slim_domain.domain.tr.tr_submission import TRSubmission
 
 from slim_report_engine.reporting import chemical_water_report_builder, column_widths, dm5_non_routine_report_builder
-from slim_report_engine.reporting import wafer_submission_builder
+from slim_report_engine.reporting import row_builders, wafer_submission_builder
 from slim_report_engine.reporting.report_section import ReportSection
 from slim_report_engine.reporting.sample_string_builder import build_sample_string
 
@@ -134,14 +134,22 @@ def build_submission_sheets(
         for section in sections:
             if section.rows:
                 section.rows[0].set_value(4, sample_string)
+        # Confirmed real: every generic Chemical/Water sheet starts with a
+        # 5-row preamble (title/blank/Notes:/2 note lines) BEFORE the
+        # first section's own sample-ID echo row -- see
+        # row_builders.build_header_preamble. Prepended after the stamp
+        # loop above so the preamble's own title row never gets the
+        # sample-ID string stamped into it. Its title row IS column 1 of
+        # row 1, so the old separate "A1" extra_cell_stamp is redundant
+        # now -- removed.
+        all_sections = (row_builders.build_header_preamble(chemical_name), *sections)
         name = _dedupe_name(generic_tab_names[i], used_names)
         sheets.append(
             OutputSheet(
                 name=name,
-                sections=tuple(sections),
+                sections=all_sections,
                 header_title=chemical_name,
                 column_widths=column_widths.STANDARD,
-                extra_cell_stamps=(("A1", chemical_name),),
             )
         )
 

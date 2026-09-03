@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 
+from slim_report_engine.reporting import report_row
 from slim_report_engine.reporting.analyte import Analyte
 from slim_report_engine.reporting.section_builders import wafer_panel_builder as builder
 
@@ -23,7 +24,7 @@ class _FakeElementService:
 def test_header_and_footer_rows_use_max_sample_columns_width():
     """Only the rows built directly by this module (header/notes/footer)
     are widened -- analyte rows go through the shared row_builders helper,
-    which always uses the default 12-column width (matches the real VBA:
+    which always uses the shared default width (matches the real VBA:
     AddAnalyteRow never takes a MaxColumns override, even here)."""
     section = builder.build_element_panel(
         "36 Elements", "note", "PB-ID", ["S1"], ["Al"], _FakeElementService()
@@ -33,7 +34,7 @@ def test_header_and_footer_rows_use_max_sample_columns_width():
         assert row.max_columns == builder.MAX_SAMPLE_COLUMNS
 
     analyte_row = next(r for r in section.rows if r.style_name == "DataLabel")
-    assert analyte_row.max_columns == 12
+    assert analyte_row.max_columns == report_row.DEFAULT_MAX_COLUMNS
 
 
 def test_process_blank_and_slot_ids_placed_at_correct_columns():

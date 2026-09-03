@@ -109,9 +109,15 @@ def test_cli_success_writes_output_and_exits_zero(tmp_path, capsys):
     assert ws.oddHeader.left.text == "\n".join(LAB_HEADER_LINES)
     assert "Acme Corp" in ws.oddHeader.right.text
     assert ws["A1"].value == "Test Acid Matrix"
+    # Confirmed real: a 5-row header preamble (title/blank/Notes:/2 note
+    # lines) precedes the first section's own sample-ID echo row.
+    assert ws["A3"].value == "Notes:"
+    assert ws["A4"].value == "All data in units of ppb unless otherwise noted"
+    assert ws["A5"].value == "Blue font indicates data at or below detection limits"
     # The standard "mmddyy-Chemical-Customer-SampleID" sample-ID string,
-    # stamped into the section's own "Sample Identification:" row.
-    assert ws["D1"].value == "030526-Test Acid Matrix-Acme Corp-S-001"
+    # stamped into the section's own "Sample Identification:" row (row 6,
+    # right after the preamble).
+    assert ws["D6"].value == "030526-Test Acid Matrix-Acme Corp-S-001"
 
 
 @pytest.mark.skipif(not _FORM_PATH.exists(), reason="real Chemical intake form not available in this environment")

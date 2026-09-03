@@ -17,6 +17,48 @@ from slim_report_engine.reporting.report_section import ReportSection
 _DEFAULT_RESULT_LABEL = "Results"
 
 
+def build_header_preamble(title: str) -> ReportSection:
+    """The sheet-wide preamble every generic Chemical/Water report starts
+    with, before ANY section's own sample-ID echo row -- confirmed real
+    (every real Chemical/Water report checked, both request types): title
+    (its own row, column 1 only), one blank row, then 3 fixed lines --
+    "Notes:", "All data in units of ppb unless otherwise noted", "Blue
+    font indicates data at or below detection limits". Always exactly
+    these 3 lines and this order for the generic path; NOT shared with
+    DM5 (its own, different 4-row shape -- title/blank/blank/one combined
+    notes row, no "Blue font" line) or Wafer (which already reproduces
+    this same 5-row shape itself, with its own analysis-specific note
+    text, in wafer_panel_builder.py).
+
+    Returned as its OWN ReportSection, deliberately excluded from the
+    "stamp column 4 of every section's row 0 with the sample-ID string"
+    loop (submission_report_builder.py) -- the title row carries no
+    sample-ID echo, only the real sample-ID-echo row (in the first REAL
+    section) does.
+    """
+    section = ReportSection("Header")
+
+    title_row = ReportRow(style_name="SectionTitle")
+    title_row.set_value(1, title)
+    section.add_row(title_row)
+
+    section.add_row(blank_row())
+
+    notes_row = ReportRow(style_name="NormalBold")
+    notes_row.set_value(1, "Notes:")
+    section.add_row(notes_row)
+
+    units_row = ReportRow(style_name="NormalBold")
+    units_row.set_value(1, "All data in units of ppb unless otherwise noted")
+    section.add_row(units_row)
+
+    blue_font_row = ReportRow(style_name="NormalBold")
+    blue_font_row.set_value(1, "Blue font indicates data at or below detection limits")
+    section.add_row(blue_font_row)
+
+    return section
+
+
 def add_header_rows(
     section: ReportSection,
     category_label: str,
@@ -118,10 +160,22 @@ def add_note_row(section: ReportSection, text: str) -> None:
 
 
 def add_footer_row(section: ReportSection, text: str) -> None:
+    """Confirmed real (every shape checked -- metals/ion panels, Assay,
+    LPC): exactly one blank row separates the last content row from
+    "Analysis by ...", and exactly one blank row separates it from
+    whatever comes next (the next section's own sample-ID echo row, or
+    the end of the sheet). The leading blank is skipped when the section
+    already ends in one (e.g. the metals panel's own AVERAGE/TOTAL
+    summary already adds its own trailing spacer) so sections never end
+    up with two blank rows in a row.
+    """
+    if section.rows and section.rows[-1].values:
+        section.add_row(blank_row())
     row = ReportRow(style_name="Normal")
     row.set_value(1, text)
     row.set_value(4, "Date of Analysis: ")
     section.add_row(row)
+    section.add_row(blank_row())
 
 
 def blank_row() -> ReportRow:

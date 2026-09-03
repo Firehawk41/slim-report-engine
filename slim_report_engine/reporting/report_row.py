@@ -15,16 +15,21 @@ from __future__ import annotations
 
 from typing import Any
 
-DEFAULT_MAX_COLUMNS = 12
+DEFAULT_MAX_COLUMNS = 6
 
 
 class ReportRow:
-    """MaxColumns defaults to 12 (every existing single-result-column report
-    shape). Wafer's multi-sample-column layout is the one exception -- it
-    needs up to column 19 for a bare MDL/QL header past as many as 13
-    side-by-side sample columns -- so it's a per-row constructor parameter,
-    not a global constant, to avoid widening every other report type's row
-    writes to columns it has no content for.
+    """MaxColumns defaults to 6 -- confirmed real (every single-result-
+    column report shape checked: generic Chemical/Water metals/ion
+    panels, DM5 element panels): border/fill never extends past column 6
+    in the real templates. (Previously defaulted to 12, which was never
+    confirmed against real evidence and caused borders/fills to bleed
+    into 6 genuinely blank, unstyled columns -- see project memory.)
+    Wafer's multi-sample-column layout is the one exception -- it needs
+    up to column 19 for a bare MDL/QL header past as many as 13
+    side-by-side sample columns -- so it's a per-row constructor
+    parameter, not this default, to avoid widening every other report
+    type's row writes to columns it has no content for.
     """
 
     def __init__(

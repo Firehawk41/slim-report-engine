@@ -52,6 +52,7 @@ def test_sample_id_echo_wide_style(ws):
     assert col4.fill.fgColor.rgb == "FFCCFFFF"
     assert col4.font.bold is True
     assert col4.alignment.horizontal == "center"
+    assert col4.alignment.wrap_text is True  # confirmed real (D6 in the real template)
 
 
 def test_sample_id_echo_simple_style_has_no_column_1_border():

@@ -66,6 +66,7 @@ _FONT_DATA = Font(name="Arial", size=10)  # analyte name/symbol
 _FONT_TITLE = Font(name="Arial", size=12, bold=True)  # DM5 title row
 
 _ALIGN_CENTER = Alignment(horizontal="center")
+_ALIGN_CENTER_WRAP = Alignment(horizontal="center", wrap_text=True)  # the sample-ID echo VALUE cell specifically -- confirmed real (D6 in the real template)
 _ALIGN_LEFT = Alignment(horizontal="left")
 _ALIGN_RIGHT = Alignment(horizontal="right")
 _ALIGN_JUSTIFY = Alignment(horizontal="justify")
@@ -118,7 +119,7 @@ def apply_style(ws: Worksheet, row_index: int, min_col: int, max_col: int, style
             else:
                 cell.font = _FONT_SAMPLE_ID_VALUE
                 cell.fill = _FILL_PALE_CYAN
-                cell.alignment = _ALIGN_CENTER
+                cell.alignment = _ALIGN_CENTER_WRAP
         return
 
     if style_name == "SampleIdEchoSimple":
@@ -138,7 +139,7 @@ def apply_style(ws: Worksheet, row_index: int, min_col: int, max_col: int, style
             else:
                 cell.font = _FONT_SAMPLE_ID_VALUE
                 cell.fill = _FILL_PALE_CYAN
-                cell.alignment = _ALIGN_CENTER
+                cell.alignment = _ALIGN_CENTER_WRAP
         return
 
     if style_name == "SampleIdEchoAssay":
