@@ -131,6 +131,7 @@ def build_sections(
     element_service: ElementService,
     metals_prep_text: str = "Evaporation",
     additional_elements_prep_text: str | None = None,
+    metals_instrument: str = "ICPMS",
 ) -> list[ReportSection]:
     """Returns one (or more, for Silicon's calculated Colloidal Silica row,
     or the additional-elements block) ReportSection per resolved analysis
@@ -150,6 +151,13 @@ def build_sections(
     (slim-domain) -- deliberately customer-agnostic here too, this
     function has no idea which customer it's building for, just whatever
     text the caller resolved.
+
+    metals_instrument: the footer's instrument name ("Analysis by
+    <this> (<prep>)") -- see Chemical.metals_instrument (slim-domain) and
+    analyte_list_section_builder.build_metals_panel's own docstring.
+    Applied identically to the main panel AND any additional-elements
+    block -- unlike prep_text, it's a property of the sample's physical
+    matrix, not something that varies per block.
     """
     names = _resolved_names_in_order(sample, analysis_service)
     names_set = set(names)
@@ -174,22 +182,26 @@ def build_sections(
             # list -- only the AVERAGE/TOTAL summary label differs.
             summary_label = name.replace("Elements", "Tr.Elts")
             metals_panel_section = analyte_list_section_builder.build_metals_panel(
-                name, analyte_presets.trace_elements_36(), summary_label, element_service, metals_prep_text
+                name, analyte_presets.trace_elements_36(), summary_label, element_service, metals_prep_text,
+                instrument=metals_instrument,
             )
             sections.append(metals_panel_section)
         elif name == "67 Elements":
             metals_panel_section = analyte_list_section_builder.build_metals_panel(
-                name, analyte_presets.trace_elements_67(), "67 Tr.Elts", element_service, metals_prep_text
+                name, analyte_presets.trace_elements_67(), "67 Tr.Elts", element_service, metals_prep_text,
+                instrument=metals_instrument,
             )
             sections.append(metals_panel_section)
         elif name == "USP Elements":
             metals_panel_section = analyte_list_section_builder.build_metals_panel(
-                name, analyte_presets.trace_elements_usp(), "USP Tr.Elts", element_service, metals_prep_text
+                name, analyte_presets.trace_elements_usp(), "USP Tr.Elts", element_service, metals_prep_text,
+                instrument=metals_instrument,
             )
             sections.append(metals_panel_section)
         elif name == "List #2 36 Elements":
             metals_panel_section = analyte_list_section_builder.build_metals_panel(
-                name, analyte_presets.trace_elements_36_list2(), "36 Tr.Elts", element_service, metals_prep_text
+                name, analyte_presets.trace_elements_36_list2(), "36 Tr.Elts", element_service, metals_prep_text,
+                instrument=metals_instrument,
             )
             sections.append(metals_panel_section)
         elif name == "4 Anions":
@@ -275,12 +287,12 @@ def build_sections(
         prep_text = additional_elements_prep_text if additional_elements_prep_text is not None else metals_prep_text
         if metals_panel_section is not None:
             analyte_list_section_builder.add_additional_elements_block(
-                metals_panel_section, additional_element_names, element_service, prep_text
+                metals_panel_section, additional_element_names, element_service, prep_text, metals_instrument
             )
         else:
             sections.append(
                 analyte_list_section_builder.build_additional_elements_only_panel(
-                    "Additional Elements", additional_element_names, element_service, prep_text
+                    "Additional Elements", additional_element_names, element_service, prep_text, metals_instrument
                 )
             )
 

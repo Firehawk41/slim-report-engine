@@ -321,6 +321,33 @@ def test_metals_panel_uses_caller_supplied_prep_text():
     assert footer.get_value(1) == "Analysis by ICPMS (Dilute and Shoot)"
 
 
+def test_metals_panel_uses_default_instrument_icpms_when_not_given():
+    svc = _FakeAnalysisService({1: "36 Elements"})
+    sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+    assert "ICPMS" in sections[0].rows[-1].get_value(1)
+
+
+def test_metals_panel_uses_caller_supplied_instrument():
+    """Confirmed real: a very dirty/nasty matrix, or one that itself
+    contains a metal (e.g. NaOH), is manually switched to ICPOES during
+    the quote process."""
+    svc = _FakeAnalysisService({1: "36 Elements"})
+    sections = orchestrator.build_sections(
+        _sample((1,)), svc, _FakeElementService(), metals_instrument="ICPOES"
+    )
+    footer = next(r for r in sections[0].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
+    assert footer.get_value(1) == "Analysis by ICPOES (Evaporation)"
+
+
+def test_caller_supplied_instrument_applies_to_additional_elements_block_too():
+    svc = _FakeAnalysisService({1: "36 Elements"})
+    sections = orchestrator.build_sections(
+        _sample((1,), additional_element_ids=(101, 102)), svc, _FakeElementService(), metals_instrument="ICPOES"
+    )
+    footers = [r.get_value(1) for r in sections[0].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1))]
+    assert footers == ["Analysis by ICPOES (Evaporation)", "Analysis by ICPOES (Evaporation)"]
+
+
 # ---------------------------------------------------------------------------
 # build_sections -- additional elements (confirmed real: several different
 # real customers' reports -- previously silently dropped entirely)

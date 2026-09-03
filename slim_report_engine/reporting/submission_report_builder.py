@@ -121,9 +121,11 @@ def build_submission_sheets(
             continue
 
         metals_prep_text = _metals_prep_text(submission, sample, chemical_service)
+        metals_instrument = _metals_instrument(submission, sample, chemical_service)
         additional_elements_prep_text = customer.additional_elements_prep or None
         sections = chemical_water_report_builder.build_sections(
-            sample, analysis_service, element_service, metals_prep_text, additional_elements_prep_text
+            sample, analysis_service, element_service, metals_prep_text, additional_elements_prep_text,
+            metals_instrument,
         )
         chemical_name = sample.form_chemical_name if submission.request_type == RequestType.CHEMICAL else "Water"
         sample_string = build_sample_string(
@@ -203,6 +205,26 @@ def _metals_prep_text(submission: TRSubmission, sample: TRSample, chemical_servi
     if chemical is not None and chemical.metals_prep:
         return chemical.metals_prep
     return _DEFAULT_METALS_PREP
+
+
+_DEFAULT_METALS_INSTRUMENT = "ICPMS"
+
+
+def _metals_instrument(submission: TRSubmission, sample: TRSample, chemical_service: ChemicalService) -> str:
+    """Confirmed real: usually "ICPMS", manually switched to "ICPOES" per
+    chemical during the quote process for a very dirty/nasty matrix, or
+    one that itself contains a metal (e.g. NaOH) -- a real human judgment
+    call, not derivable from parsed submission data (see
+    Chemical.metals_instrument, slim-domain). No real evidence yet of a
+    Water sample needing anything but the default -- Water has no
+    Chemical record to read an override from anyway.
+    """
+    if submission.request_type != RequestType.CHEMICAL:
+        return _DEFAULT_METALS_INSTRUMENT
+    chemical = chemical_service.load_chemical(sample.chemical_id)
+    if chemical is not None and chemical.metals_instrument:
+        return chemical.metals_instrument
+    return _DEFAULT_METALS_INSTRUMENT
 
 
 _SHEET_NAME_ILLEGAL_CHARS = ":/\\?*[]<>|"

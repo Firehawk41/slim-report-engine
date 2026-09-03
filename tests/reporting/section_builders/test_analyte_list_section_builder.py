@@ -93,6 +93,36 @@ def test_build_metals_panel_custom_prep_text():
     assert footer.get_value(1) == "Analysis by ICPMS (Dilute and Shoot)"
 
 
+def test_build_metals_panel_custom_instrument():
+    section = builder.build_metals_panel(
+        "36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService(), instrument="ICPOES"
+    )
+    footer = section.rows[-1]
+    assert footer.get_value(1) == "Analysis by ICPOES (Evaporation)"
+
+
+def test_build_metals_panel_instrument_applies_to_additional_elements_block_too():
+    section = builder.build_metals_panel(
+        "36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService(),
+        additional_element_names=["Antimony"], instrument="ICPOES",
+    )
+    footers = [r.get_value(1) for r in section.rows if r.get_value(1) and "Analysis by" in str(r.get_value(1))]
+    assert footers == ["Analysis by ICPOES (Evaporation)", "Analysis by ICPOES (Evaporation)"]
+
+
+def test_add_additional_elements_block_default_instrument_is_icpms():
+    section = builder.build_metals_panel("36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService())
+    builder.add_additional_elements_block(section, ["Antimony"], _FakeElementService(), "Evaporation")
+    assert section.rows[-1].get_value(1) == "Analysis by ICPMS (Evaporation)"
+
+
+def test_build_additional_elements_only_panel_custom_instrument():
+    section = builder.build_additional_elements_only_panel(
+        "Additional Elements", ["Antimony"], _FakeElementService(), "Dilute and Shoot", instrument="ICPOES"
+    )
+    assert section.rows[-1].get_value(1) == "Analysis by ICPOES (Dilute and Shoot)"
+
+
 def test_build_metals_panel_with_additional_elements_appends_labeled_block():
     section = builder.build_metals_panel(
         "36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService(),

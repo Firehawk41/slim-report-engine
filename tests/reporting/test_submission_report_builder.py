@@ -30,6 +30,7 @@ class _FakeChemical:
     id: int
     name: str
     metals_prep: str = ""
+    metals_instrument: str = "ICPMS"
 
 
 class _FakeChemicalService:
@@ -310,6 +311,40 @@ def test_chemical_sample_uses_the_resolved_chemicals_catalog_prep():
         r for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
     )
     assert footer.get_value(1) == "Analysis by ICPMS (ICPMS Digestion)"
+
+
+def test_chemical_sample_uses_the_resolved_chemicals_catalog_instrument():
+    """Confirmed real: a very dirty/nasty matrix, or one that itself
+    contains a metal (e.g. NaOH), gets its Chemical.metals_instrument
+    manually set to ICPOES during the quote process."""
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid", metals_instrument="ICPOES")})
+    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
+    footer = next(r for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
+    assert footer.get_value(1) == "Analysis by ICPOES (Evaporation)"
+
+
+def test_chemical_sample_with_blank_catalog_instrument_defaults_to_icpms():
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid")})
+    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
+    footer = next(r for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
+    assert "ICPMS" in footer.get_value(1)
+
+
+def test_water_sample_always_uses_icpms_no_chemical_lookup():
+    samples = [_sample("S-001", analysis_ids=(1,))]
+    submission = _submission(samples, request_type=RequestType.WATER)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    footer = next(r for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
+    assert "ICPMS" in footer.get_value(1)
 
 
 def test_chemical_sample_with_blank_catalog_prep_defaults_to_evaporation():
