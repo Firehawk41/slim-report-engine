@@ -14,3 +14,4 @@ config.local.*
 # Real customer data must never land in this repo
 *.accdb
 *.mdb
+real_data/
