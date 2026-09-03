@@ -48,11 +48,16 @@ class _FakeElement:
 
 
 class _FakeElementService:
+    _BY_ID = {101: _FakeElement(id=101, name="Antimony", symbol="Sb")}
+
     def get_by_symbol(self, symbol: str):
         return _FakeElement(id=0, name=symbol, symbol=symbol)
 
+    def get_by_name(self, name: str):
+        return next((e for e in self._BY_ID.values() if e.name == name), None)
+
     def load_element(self, element_id: int):
-        return None
+        return self._BY_ID.get(element_id)
 
 
 _CUSTOMER = Customer(
@@ -72,6 +77,7 @@ def _sample(
     processing_time=ProcessingTime.NEXT_DAY,
     reporting_units="",
     form_chemical_name="Test Acid",
+    additional_element_ids=(),
 ) -> TRSample:
     return TRSample(
         sample_name=name,
@@ -82,6 +88,7 @@ def _sample(
         chemical_id=chemical_id,
         analysis_ids=analysis_ids,
         reporting_units=reporting_units,
+        additional_element_ids=additional_element_ids,
     )
 
 
@@ -328,6 +335,40 @@ def test_water_sample_always_uses_dilute_and_shoot_no_chemical_lookup():
         r for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
     )
     assert footer.get_value(1) == "Analysis by ICPMS (Dilute and Shoot)"
+
+
+def test_customer_additional_elements_prep_overrides_only_the_second_footer():
+    """The customer-level flag, confirmed real: at least one customer's
+    additional elements are run by a different method than their main
+    panel. Deliberately customer-agnostic here -- any real customer's
+    override value lives only in a real database record, never in this
+    public repo (see Customer.additional_elements_prep, slim-domain)."""
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1, additional_element_ids=(101,))]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid", metals_prep="Evaporation")})
+    customer_with_override = _CUSTOMER.model_copy(update={"additional_elements_prep": "Alternate Method"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, customer_with_override, chemical_svc, analysis_svc, _FakeElementService()
+    )
+    footers = [
+        r.get_value(1) for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
+    ]
+    assert footers == ["Analysis by ICPMS (Evaporation)", "Analysis by ICPMS (Alternate Method)"]
+
+
+def test_customer_with_no_additional_elements_prep_override_uses_same_prep_both_times():
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1, additional_element_ids=(101,))]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid", metals_prep="Evaporation")})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService()
+    )
+    footers = [
+        r.get_value(1) for r in sheets[0].sections[0].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
+    ]
+    assert footers == ["Analysis by ICPMS (Evaporation)", "Analysis by ICPMS (Evaporation)"]
 
 
 def test_sheet_names_sanitize_illegal_characters():

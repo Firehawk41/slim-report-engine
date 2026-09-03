@@ -121,8 +121,9 @@ def build_submission_sheets(
             continue
 
         metals_prep_text = _metals_prep_text(submission, sample, chemical_service)
+        additional_elements_prep_text = customer.additional_elements_prep or None
         sections = chemical_water_report_builder.build_sections(
-            sample, analysis_service, element_service, metals_prep_text
+            sample, analysis_service, element_service, metals_prep_text, additional_elements_prep_text
         )
         chemical_name = sample.form_chemical_name if submission.request_type == RequestType.CHEMICAL else "Water"
         sample_string = build_sample_string(

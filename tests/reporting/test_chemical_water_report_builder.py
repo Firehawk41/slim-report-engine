@@ -357,6 +357,41 @@ def test_additional_elements_alone_build_a_standalone_minimal_panel():
     assert section.rows[-1].get_value(1) == "Analysis by ICPMS (Dilute and Shoot)"
 
 
+# ---------------------------------------------------------------------------
+# build_sections -- additional_elements_prep_text override (customer-level
+# flag, confirmed real: at least one customer's additional elements are
+# run by a different method than their main panel)
+# ---------------------------------------------------------------------------
+
+def test_additional_elements_prep_override_applies_only_to_the_second_footer():
+    svc = _FakeAnalysisService({1: "36 Elements"})
+    sections = orchestrator.build_sections(
+        _sample((1,), additional_element_ids=(101, 102)), svc, _FakeElementService(),
+        metals_prep_text="Evaporation", additional_elements_prep_text="Alternate Method",
+    )
+    footers = [r.get_value(1) for r in sections[0].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1))]
+    assert footers == ["Analysis by ICPMS (Evaporation)", "Analysis by ICPMS (Alternate Method)"]
+
+
+def test_additional_elements_prep_override_applies_to_standalone_panel_too():
+    svc = _FakeAnalysisService({})
+    sections = orchestrator.build_sections(
+        _sample((), additional_element_ids=(101, 102)), svc, _FakeElementService(),
+        metals_prep_text="Dilute and Shoot", additional_elements_prep_text="Alternate Method",
+    )
+    assert sections[0].rows[-1].get_value(1) == "Analysis by ICPMS (Alternate Method)"
+
+
+def test_no_additional_elements_prep_override_falls_back_to_metals_prep_text():
+    svc = _FakeAnalysisService({1: "36 Elements"})
+    sections = orchestrator.build_sections(
+        _sample((1,), additional_element_ids=(101, 102)), svc, _FakeElementService(),
+        metals_prep_text="Evaporation",
+    )
+    footers = [r.get_value(1) for r in sections[0].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1))]
+    assert footers == ["Analysis by ICPMS (Evaporation)", "Analysis by ICPMS (Evaporation)"]
+
+
 def test_no_additional_elements_no_change_in_section_count():
     svc = _FakeAnalysisService({1: "36 Elements"})
     sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())

@@ -51,11 +51,15 @@ minimal panel-shaped section when additional elements are the ONLY thing
 requested on a sample (confirmed real: several real Water samples were
 exactly like this — see
 analyte_list_section_builder.build_additional_elements_only_panel). Both
-reuse the SAME prep_text as the sample's main metals panel would use — a
-customer-specific override on the additional-elements block specifically
-(confirmed real for one customer: a different prep method than the main
-panel's, per an agreement with that customer) is deliberately deferred,
-separate work.
+default to the SAME prep_text as the sample's main metals panel, unless
+additional_elements_prep_text overrides it — confirmed real: at least one
+customer's additional elements are run by a different method than their
+main panel, per an agreement with that customer. The override is
+deliberately customer-agnostic here: this module has no idea WHICH
+customer, just whatever text the caller resolved from
+Customer.additional_elements_prep (slim-domain) — the real customer-
+specific value belongs only in a real database record, never in this
+public repo.
 
 PH DISPATCH — a deliberate improvement over the VBA source: standalone
 "pH" (Conductivity NOT also requested) maps to
@@ -126,6 +130,7 @@ def build_sections(
     analysis_service: AnalysisService,
     element_service: ElementService,
     metals_prep_text: str = "Evaporation",
+    additional_elements_prep_text: str | None = None,
 ) -> list[ReportSection]:
     """Returns one (or more, for Silicon's calculated Colloidal Silica row,
     or the additional-elements block) ReportSection per resolved analysis
@@ -136,6 +141,15 @@ def build_sections(
     docstring's PREP TEXT section. The caller (submission_report_builder.py)
     computes this from the resolved Chemical's catalog prep (Chemical/Water
     request-type dependent); this module has no DB dependency of its own.
+
+    additional_elements_prep_text: a separate prep-text override for the
+    additional-elements block specifically -- None (the default) means
+    "no override, reuse metals_prep_text" (current behavior). Confirmed
+    real: at least one customer's additional elements are run by a
+    different method than their main panel; see Customer.additional_elements_prep
+    (slim-domain) -- deliberately customer-agnostic here too, this
+    function has no idea which customer it's building for, just whatever
+    text the caller resolved.
     """
     names = _resolved_names_in_order(sample, analysis_service)
     names_set = set(names)
@@ -258,14 +272,15 @@ def build_sections(
 
     additional_element_names = _resolve_additional_element_names(sample, element_service)
     if additional_element_names:
+        prep_text = additional_elements_prep_text if additional_elements_prep_text is not None else metals_prep_text
         if metals_panel_section is not None:
             analyte_list_section_builder.add_additional_elements_block(
-                metals_panel_section, additional_element_names, element_service, metals_prep_text
+                metals_panel_section, additional_element_names, element_service, prep_text
             )
         else:
             sections.append(
                 analyte_list_section_builder.build_additional_elements_only_panel(
-                    "Additional Elements", additional_element_names, element_service, metals_prep_text
+                    "Additional Elements", additional_element_names, element_service, prep_text
                 )
             )
 
