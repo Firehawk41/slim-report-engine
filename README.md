@@ -2,10 +2,11 @@
 
 ## What this is
 
-A Python-first reimplementation of a lab's report-generation
-logic, with a thin VBA layer as the Excel front end. Replaces (or
-sits beside) `modReportCreator.bas`, a ~2000-line VBA macro that
-generates blank analysis report sheets from testing-request workbooks.
+A Python-first reimplementation of a lab's report-generation logic.
+Replaces (or sits beside) `modReportCreator.bas`, a ~2000-line VBA
+macro that generates blank analysis report sheets from testing-request
+workbooks. Reads a filled-in Testing Request workbook and writes the
+blank analysis report workbook directly — no VBA involved at runtime.
 
 See [DOMAIN_BRIEF.md](DOMAIN_BRIEF.md) for the actual business-logic
 knowledge transfer (form layouts, database schema, report content
@@ -32,25 +33,29 @@ Python isn't.
 - **Business logic lives in Python**: parsing rules (which cell means
   what, per form type), the customer/chemical/analysis resolution
   model, and the dispatch logic (which analysis maps to which report
-  section, in what shape) — all pure computation, no Excel dependency.
-  This mirrors a layer that already exists and is already isolated in
-  the VBA prototype (Entity/Builder/dispatch classes with zero
-  Excel/Range coupling) — it's a natural, not speculative, port target.
-  The Customer/Chemical/Analysis/Element domain model and the Testing
-  Request submission/sample parsing stack are not built here from
-  scratch — they're pulled in from `slim-domain` (see below), which
-  already has this as a tested Python port of the same VBA classes.
-- **VBA stays thin**: it owns the actual Excel object model writes
-  (`Range`, styles, formulas, real-template row fidelity) and calls
-  into the Python layer for "what to write," rather than deciding it
-  itself. The already-built and template-verified VBA Writer layer
-  (`clsReportWriter`, `modReportStyles`) is a candidate to keep as-is
-  on this side of the boundary rather than re-derive.
-- **Bridge mechanism**: not yet chosen. Leading candidate is a local
-  Python COM server (`win32com.server`) VBA can `CreateObject`
-  against; a subprocess + JSON-over-stdio fallback if COM server
-  registration turns out to need admin rights we don't want to
-  require on lab machines.
+  section, in what shape) — all pure computation, no Excel dependency
+  until the final write. This mirrors a layer that already exists and
+  is already isolated in the VBA prototype (Entity/Builder/dispatch
+  classes with zero Excel/Range coupling) — it's a natural, not
+  speculative, port target. The Customer/Chemical/Analysis/Element
+  domain model and the Testing Request submission/sample parsing stack
+  are not built here from scratch — they're pulled in from
+  `slim-domain` (see below), which already has this as a tested Python
+  port of the same VBA classes.
+- **Python owns the write too**: `slim_report_engine/reporting/report_writer.py`
+  writes the final report workbook directly via openpyxl — ported from
+  `clsReportWriter.cls` + `modReportStyles.bas`. The original plan was
+  to keep this VBA-side on the assumption that its styling logic was
+  substantial, already-solved work worth reusing as-is; reading the
+  actual source showed the opposite — `modReportStyles.bas` is a
+  five-case named-style vocabulary (~30 lines), and `clsReportWriter`'s
+  write loop is a bulk value write, a handful of sparse formula
+  overrides, and one style-application call. Both were straightforward
+  to port. No VBA bridge is needed: a lab machine just needs Python
+  installed (see deployment, below) and runs the tool directly against
+  an input workbook — there's no live COM server or subprocess protocol
+  to design, since nothing needs to cross the VBA/Python boundary at
+  runtime at all.
 
 ## Rollout plan
 
@@ -66,10 +71,13 @@ maintained Python install or the discipline to keep one updated.
 Leaning toward a frozen/bundled interpreter (PyInstaller or an
 embeddable Python distribution) rather than requiring `pip install`
 on each machine, with an explicit version check so a stale copy on
-some machine fails loudly instead of silently drifting. IT/security
-should be looped in before lab-wide rollout — a macro shelling out to
-an executable or registering a COM server reads very differently to
-AV/EDR than a plain macro, and that's worth clearing early.
+some machine fails loudly instead of silently drifting. Owning the
+write directly removes the COM-server-registration concern this
+section used to flag (there's no VBA/Python bridge left to register),
+but a frozen/unsigned executable running on lab machines still merits
+looping in IT/security before lab-wide rollout — PyInstaller builds in
+particular are known to trip AV heuristics, worth clearing early rather
+than discovering it during rollout.
 
 ## Explicitly out of scope for now
 
@@ -84,10 +92,15 @@ AV/EDR than a plain macro, and that's worth clearing early.
 
 ## Relationship to `Python-VBA-Bridge`
 
-That repo remains the tool for verifying VBA-side behavior actually
-works in real Excel (template fidelity, formula computation, real
-object-model quirks) — still needed for whatever stays VBA-side here.
-This repo is not a replacement for it, just a different concern.
+That repo holds the real VBA source this project ports from (parsing
+rules, resolution logic, report-content builders, and the writer/styles
+this repo's `report_writer.py` was ported from) — the reference
+implementation, not a runtime dependency. Since Python now owns the
+write directly, nothing here calls back into VBA or Excel at runtime;
+`Python-VBA-Bridge`'s own tooling (driving real VBA/Excel for
+verification) isn't needed by this repo's own execution path anymore,
+only as a place to go re-check a real template or macro behavior
+against when porting something new.
 
 ## Relationship to `slim-domain`
 
