@@ -195,6 +195,30 @@ def test_dm5_customer_supported_chemical_routes_to_dm5_builder():
     assert "NH4OH" in value
 
 
+def test_dm5_composite_chemical_with_nothing_else_requested_gets_plain_panel():
+    """End-to-end wiring check: the dispatcher resolves the sample's OTHER
+    analysis selections and passes them to dm5_non_routine_report_builder
+    -- confirmed real, a Composite chemical with no Anions/Titrations
+    selected gets no anion block, no embedded Assay."""
+    samples = [_sample("S-001", chemical_id=9)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL, customer_id=2)
+    chemical_svc = _FakeChemicalService({9: _FakeChemical(id=9, name="0.49%HF")})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService()
+    )
+    assert len(sheets[0].sections) == 1
+
+
+def test_dm5_composite_chemical_with_anions_and_assay_requested_gets_both_blocks():
+    samples = [_sample("S-001", analysis_ids=(1, 2), chemical_id=9)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL, customer_id=2)
+    chemical_svc = _FakeChemicalService({9: _FakeChemical(id=9, name="0.49%HF")})
+    analysis_svc = _FakeAnalysisService({1: "4 Anions", 2: "Assay"})
+    sheets = dispatcher.build_submission_sheets(submission, _DM5N, chemical_svc, analysis_svc, _FakeElementService())
+    assert len(sheets[0].sections) == 2
+    assert sheets[0].sections[1].id == "0.49%HF_Assay"
+
+
 def test_dm5_customer_unsupported_chemical_raises():
     samples = [_sample("S-001", chemical_id=9)]
     submission = _submission(samples, request_type=RequestType.CHEMICAL, customer_id=2)

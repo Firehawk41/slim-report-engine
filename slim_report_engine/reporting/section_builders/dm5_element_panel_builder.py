@@ -37,14 +37,25 @@ def build_element_panel(
     qc_code: str,
     specs: dict[str, float],
     element_service: ElementService,
+    units_note_text: str = "All data in ppb",
+    units_note_column: int = 4,
 ) -> ReportSection:
     """chemical_label: e.g. "NH4OH" (becomes row 1's title and the sheet tab
     name once written). specs: symbol -> spec value; a symbol absent from
     specs gets no column-1 value, matching the real template.
+
+    units_note_text/units_note_column: same per-chemical override as
+    build_element_panel_with_anions -- confirmed real: a composite
+    chemical's units note (e.g. "0.49%HF"'s longer caveat in column 3)
+    is chemical-specific, not conditional on whether the anion block is
+    actually present on this particular sample (see
+    dm5_non_routine_report_builder.py's Composite-category dispatch,
+    which now calls this function -- not
+    build_element_panel_with_anions -- when anions weren't requested).
     """
     section = ReportSection(id)
 
-    _add_title_and_notes(section, chemical_label, "   Data =< MDL", 4, "All data in ppb")
+    _add_title_and_notes(section, chemical_label, "   Data =< MDL", units_note_column, units_note_text)
     _add_qc_row_and_header(section, qc_code)
     _add_element_rows(section, specs, element_service)
 

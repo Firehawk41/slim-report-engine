@@ -95,8 +95,10 @@ def build_submission_sheets(
                     "21 chemicals dm5_non_routine_report_builder supports -- not silently falling back "
                     "to the generic path, which has no DM5-specific content to offer."
                 )
+            requested_analysis_names = _resolved_analysis_names(sample, analysis_service)
             result = dm5_non_routine_report_builder.build_non_routine_report(
-                chemical_name, customer.name, submission.date_received, sample.sample_name, element_service
+                chemical_name, customer.name, submission.date_received, sample.sample_name, element_service,
+                requested_analysis_names,
             )
             name = _dedupe_name(_sanitize_sheet_name(chemical_name), used_names)
             sheets.append(
@@ -156,6 +158,22 @@ def _build_wafer_sheets(
             )
         )
     return sheets
+
+
+def _resolved_analysis_names(sample: TRSample, analysis_service: AnalysisService) -> frozenset[str]:
+    """Distinct resolved analysis names for a sample -- used by the DM5
+    branch to tell dm5_non_routine_report_builder what else was requested
+    (see its COMPOSITE'S ANION/ASSAY BLOCKS ARE CONDITIONAL note). Same
+    resolution chemical_water_report_builder.py does for the generic
+    path, duplicated here rather than imported since it's three lines and
+    that module has no reason to know about DM5 at all.
+    """
+    names: set[str] = set()
+    for analysis_id in sample.analysis_ids:
+        analysis = analysis_service.load_analysis(analysis_id)
+        if analysis is not None:
+            names.add(analysis.name)
+    return frozenset(names)
 
 
 _DEFAULT_METALS_PREP = "Evaporation"

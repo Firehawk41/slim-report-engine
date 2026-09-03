@@ -10,6 +10,14 @@ standard sample-ID string and the cell address it belongs in.
 SCOPE: all 21 DM5 chemicals across both locations dispatch correctly
 (element panel: 13, standalone Assay: 5, composite: 3).
 
+COMPOSITE'S ANION/ASSAY BLOCKS ARE CONDITIONAL, NOT FIXED — confirmed
+real: unlike the routine schedule-grid path (out of scope, always renders
+a fixed set of blocks), a non-routine sample only gets the composite
+chemical's anion block and/or embedded Assay when those were actually
+requested on THAT sample's TR form (same Anions/Titrations selections the
+generic Chemical/Water path already reads) — see
+requested_analysis_names below and _ANION_ANALYSIS_NAMES.
+
 Per the Parse -> Transform -> Write pipeline (see project memory
 feedback_pipeline_stages), this function is Transform-stage only: it
 returns WHAT to write and WHERE (sections, sample string, target cell
@@ -38,6 +46,14 @@ from slim_report_engine.reporting.section_builders import (
 _ELEMENT_CHEMICALS = {"NH4OH", "H2O2", "IPA", "BHF", "49%HF", "HCl", "SurfEtch"}
 _ASSAY_CHEMICALS = {"CSL9044C", "W2000", "W7808"}
 _COMPOSITE_CHEMICALS = {"0.49%HF", "2.5%HF"}
+
+# Confirmed real (2026-09-03): a Composite chemical's anion block and
+# embedded Assay are NOT unconditional -- they only appear on the real
+# report when the sample's TR form actually requested them, same as
+# every other Chemical/Water sample's analysis selections. The routine
+# DM5 schedule-grid path (out of scope) DOES always get a fixed set --
+# non-routine, which this module builds, does not.
+_ANION_ANALYSIS_NAMES = {"4 Anions", "5 Anions", "7 Anions", "Anions", "5 Anions + MS Authentication"}
 
 _ELEMENT_SPECS_BY_LOCATION: dict[str, dict[str, Callable[[], dict[str, float]]]] = {
     "DM5N": {
@@ -99,12 +115,21 @@ def build_non_routine_report(
     date_received: date,
     sample_id: str,
     element_service: ElementService,
+    requested_analysis_names: frozenset[str] = frozenset(),
 ) -> DM5NonRoutineResult:
     """chemical_name: the raw selection value (e.g. "NH4OH", "W2000",
     "2.5%HF" -- one of the 21 known DM5 chemical names, raises if not).
     location: "DM5N" or "DM5S". sample_id: the TR-form's own sample
     identifier for this row (the same value every other Chemical/Water
     sample's sample string embeds).
+
+    requested_analysis_names: the sample's OTHER resolved analysis
+    selections (Anions/Titrations column), same names the generic
+    Chemical/Water path resolves -- only consulted for the Composite
+    category, to decide whether this sample's anion block / embedded
+    Assay are actually present (see _ANION_ANALYSIS_NAMES above). Element
+    and Assay category chemicals ignore this entirely; their shape never
+    varies by what else was requested.
     """
     category = _get_category(chemical_name)
     chemical_label = _get_chemical_label(chemical_name, location)
@@ -131,22 +156,38 @@ def build_non_routine_report(
         qc_code, spec_range, note_text, units_note_text, units_note_column = _get_composite_params(
             chemical_name, location
         )
-        sections = [
-            dm5_element_panel_builder.build_element_panel_with_anions(
-                chemical_name,
-                chemical_label,
-                qc_code,
-                element_specs.hf_composite_element_specs(),
-                element_specs.hf_composite_anion_specs(),
-                element_service,
-                units_note_text,
-                units_note_column,
-            ),
-            dm5_assay_section_builder.build_embedded_assay(f"{chemical_name}_Assay", spec_range, note_text),
-        ]
-        # Not independently confirmed against a real composite sheet --
-        # inferred from the element panel dominating the sheet's content
-        # (the embedded Assay block is a small addendum at the bottom).
+        include_anions = bool(requested_analysis_names & _ANION_ANALYSIS_NAMES)
+        include_assay = "Assay" in requested_analysis_names
+
+        if include_anions:
+            sections = [
+                dm5_element_panel_builder.build_element_panel_with_anions(
+                    chemical_name,
+                    chemical_label,
+                    qc_code,
+                    element_specs.hf_composite_element_specs(),
+                    element_specs.hf_composite_anion_specs(),
+                    element_service,
+                    units_note_text,
+                    units_note_column,
+                )
+            ]
+        else:
+            sections = [
+                dm5_element_panel_builder.build_element_panel(
+                    chemical_name,
+                    chemical_label,
+                    qc_code,
+                    element_specs.hf_composite_element_specs(),
+                    element_service,
+                    units_note_text,
+                    units_note_column,
+                )
+            ]
+        if include_assay:
+            sections.append(
+                dm5_assay_section_builder.build_embedded_assay(f"{chemical_name}_Assay", spec_range, note_text)
+            )
         widths = column_widths.DM5_ELEMENT
     else:
         raise ValueError(f"unknown DM5 chemical for {location}: {chemical_name!r}")

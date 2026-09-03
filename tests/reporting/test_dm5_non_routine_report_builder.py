@@ -102,17 +102,57 @@ def test_w2000_spec_range_differs_by_location():
 # Composite category
 # ---------------------------------------------------------------------------
 
-def test_composite_produces_two_sections_element_panel_plus_embedded_assay():
+_ANIONS_AND_ASSAY_REQUESTED = frozenset({"4 Anions", "Assay"})
+
+
+def test_composite_with_nothing_else_requested_is_a_plain_element_panel():
+    """Confirmed real (2026-09-03): the anion block and embedded Assay are
+    NOT unconditional -- a real non-routine composite sample with neither
+    Anions nor Titrations selected on its TR form gets neither block,
+    just the plain 36-element panel, same shape as an Element-category
+    chemical."""
     result = orchestrator.build_non_routine_report(
         "0.49%HF", "DM5N", date(2026, 3, 5), "S-001", _FakeElementService()
+    )
+    assert len(result.sections) == 1
+    assert not any(row.get_value(2) == "Chloride" for row in result.sections[0].rows)
+
+
+def test_composite_anions_requested_but_not_assay_adds_only_the_anion_rows():
+    result = orchestrator.build_non_routine_report(
+        "0.49%HF", "DM5N", date(2026, 3, 5), "S-001", _FakeElementService(),
+        requested_analysis_names=frozenset({"4 Anions"}),
+    )
+    assert len(result.sections) == 1
+    assert any(row.get_value(2) == "Chloride" for row in result.sections[0].rows)
+
+
+def test_composite_assay_requested_but_not_anions_adds_only_the_assay_section():
+    result = orchestrator.build_non_routine_report(
+        "0.49%HF", "DM5N", date(2026, 3, 5), "S-001", _FakeElementService(),
+        requested_analysis_names=frozenset({"Assay"}),
+    )
+    assert len(result.sections) == 2
+    assert result.sections[1].id == "0.49%HF_Assay"
+    assert not any(row.get_value(2) == "Chloride" for row in result.sections[0].rows)
+
+
+def test_composite_produces_two_sections_element_panel_plus_embedded_assay():
+    result = orchestrator.build_non_routine_report(
+        "0.49%HF", "DM5N", date(2026, 3, 5), "S-001", _FakeElementService(),
+        requested_analysis_names=_ANIONS_AND_ASSAY_REQUESTED,
     )
     assert len(result.sections) == 2
     assert result.sections[1].id == "0.49%HF_Assay"
 
 
 def test_composite_049hf_dm5n_only_carries_the_deprecation_note():
-    n = orchestrator.build_non_routine_report("0.49%HF", "DM5N", date(2026, 3, 5), "S-001", _FakeElementService())
-    s = orchestrator.build_non_routine_report("0.49%HF", "DM5S", date(2026, 3, 5), "S-001", _FakeElementService())
+    n = orchestrator.build_non_routine_report(
+        "0.49%HF", "DM5N", date(2026, 3, 5), "S-001", _FakeElementService(), _ANIONS_AND_ASSAY_REQUESTED
+    )
+    s = orchestrator.build_non_routine_report(
+        "0.49%HF", "DM5S", date(2026, 3, 5), "S-001", _FakeElementService(), _ANIONS_AND_ASSAY_REQUESTED
+    )
     n_assay_data = n.sections[1].rows[-1]
     s_assay_data = s.sections[1].rows[-1]
     assert n_assay_data.get_value(5) is not None
@@ -121,7 +161,7 @@ def test_composite_049hf_dm5n_only_carries_the_deprecation_note():
 
 def test_25hf_is_dm5s_only():
     result = orchestrator.build_non_routine_report(
-        "2.5%HF", "DM5S", date(2026, 3, 5), "S-001", _FakeElementService()
+        "2.5%HF", "DM5S", date(2026, 3, 5), "S-001", _FakeElementService(), _ANIONS_AND_ASSAY_REQUESTED
     )
     assert result.sections[1].rows[-1].get_value(1) == "2.4 - 2.6 %"
 
