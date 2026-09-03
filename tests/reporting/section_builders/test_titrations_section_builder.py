@@ -18,7 +18,7 @@ def test_build_kf_water_shape():
     header, data = section.rows[1], section.rows[2]
     assert header.get_value(2) == "Karl Fischer"
     assert data.get_value(2) == "Water"
-    assert data.get_value(3) == "%"
+    assert data.get_value(3) == "ppm"
     assert section.rows[-1].get_value(1) == "Analysis by KF-Titration"
 
 

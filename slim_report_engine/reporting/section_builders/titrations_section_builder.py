@@ -10,15 +10,11 @@ name, are real placeholders manually filled in by staff per sample after
 generation — not resolved by any code path, so they're reproduced verbatim
 here (same category as Wafer's own hand-filled notes).
 
-DISPATCH STATUS: "Assay" and "GC-FID" are both wired into
-chemical_water_report_builder.py — confirmed against real completed
-reports (Assay: 3 different real Chemical customers; GC-FID: one real
-Chemical customer's intake form uses "GC-FID" verbatim as a Titrations
-selection). build_kf_water is ported and ready (its shape is directly
-from the real VBA source) but not yet dispatched: no real submitted
-report in hand confirms its exact catalog analysis-name string ("Karl
-Fischer"? "KF Water"? something else?) — wire it once a real one shows up
-rather than guessing the dispatch key.
+DISPATCH STATUS: "Assay", "GC-FID", and "Moisture (Karl Fischer)" are all
+wired into chemical_water_report_builder.py — confirmed against real
+completed reports (Assay: 3 different real Chemical customers; GC-FID and
+Moisture (Karl Fischer): one real Chemical customer's intake form uses
+both verbatim as Titrations selections, on the same submission).
 
 EXCLUDED (customer-specific edge cases, deferred, same bucket as other
 customer-specific edge cases already out of scope): bespoke titration
@@ -41,9 +37,15 @@ def build_assay(id: str) -> ReportSection:
 
 
 def build_kf_water(id: str) -> ReportSection:
+    """Confirmed real: the data row's unit is "ppm", not the "%" the real
+    VBA reference source (clsTitrationsSectionBuilder.cls) has -- the
+    template that source was ported from disagrees with a real completed
+    report on this one detail, and the real report wins (see this
+    project's general policy: verify against real source over the
+    closest local approximation)."""
     section = ReportSection(id)
     row_builders.add_simple_header_row(section, "Karl Fischer", "Result", "STDEV")
-    row_builders.add_analyte_row(section, "Water", "%")
+    row_builders.add_analyte_row(section, "Water", "ppm")
     row_builders.add_footer_row(section, "Analysis by KF-Titration")
     return section
 

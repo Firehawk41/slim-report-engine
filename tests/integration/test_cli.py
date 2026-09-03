@@ -100,8 +100,11 @@ def test_cli_success_writes_output_and_exits_zero(tmp_path, capsys):
     assert err == ""
 
     wb = openpyxl.load_workbook(output_path)
-    assert "S-001" in wb.sheetnames
-    ws = wb["S-001"]
+    # Tab name is the chemical matrix (real system's own naming, see
+    # submission_report_builder.py's SetChemicalSheetName port) -- not
+    # the Sample ID.
+    assert "Test Acid Matrix" in wb.sheetnames
+    ws = wb["Test Acid Matrix"]
     assert ws.oddHeader.center.text == "Test Acid Matrix"
     assert ws.oddHeader.left.text == "\n".join(LAB_HEADER_LINES)
     assert "Acme Corp" in ws.oddHeader.right.text

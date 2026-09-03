@@ -103,7 +103,7 @@ _UNCONDITIONALLY_SUPPORTED = {
     "Total Silicon", "Dissolved Silicon", "Dissolved and Total Si",
     "TOC", "Alkalinity", "Bacteria Count",
     "Conductivity", "Density", "Liquid Particle Count", "APHA Color",
-    "pH", "Assay", "GC-FID",
+    "pH", "Assay", "GC-FID", "Moisture (Karl Fischer)",
 }
 
 
@@ -245,6 +245,10 @@ def build_sections(
             # titrations_section_builder.py's DISPATCH STATUS note, now
             # updated: this is no longer a guess.
             sections.append(titrations_section_builder.build_gc_fid(name))
+        elif name == "Moisture (Karl Fischer)":
+            # Confirmed real (same real Chemical customer's intake form,
+            # verbatim Titrations selection alongside "GC-FID" above).
+            sections.append(titrations_section_builder.build_kf_water(name))
         else:
             raise ValueError(
                 f"analysis {name!r} is not yet supported by this architecture -- "

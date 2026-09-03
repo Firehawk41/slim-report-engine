@@ -116,7 +116,11 @@ def test_generic_chemical_customer_one_sheet_per_sample():
         submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
     )
     assert len(sheets) == 2
-    assert sheets[0].name == "S-001"
+    # Confirmed real (SetChemicalSheetName): tab name is the CHEMICAL
+    # MATRIX, not the Sample ID -- both samples share "Test Acid" here,
+    # so both get numbered "Test Acid 1"/"Test Acid 2".
+    assert sheets[0].name == "Test Acid 1"
+    assert sheets[1].name == "Test Acid 2"
     assert sheets[0].header_title == "Test Acid"
     assert sheets[0].extra_cell_stamps == (("A1", "Test Acid"),)
 
@@ -166,7 +170,7 @@ def test_sample_with_multiple_independent_analyses_lands_on_one_sheet():
     )
 
     assert len(sheets) == 1  # one sheet total, not three
-    assert sheets[0].name == "S-001"
+    assert sheets[0].name == "Test Acid"  # only sample with this chemical matrix -- no numeric suffix
     assert [s.id for s in sheets[0].sections] == ["36 Elements", "TOC", "Alkalinity"]
 
 
@@ -241,18 +245,22 @@ def test_wafer_request_type_routes_to_wafer_builder_regardless_of_customer():
     assert sheets[0].extra_cell_stamps == (("A1", "150mm Wafers"),)
 
 
-def test_duplicate_sheet_names_get_deduplicated():
+def test_duplicate_chemical_matrix_gets_numbered_not_deduplicated_with_parens():
+    """Confirmed real (SetChemicalSheetName): samples sharing a chemical
+    matrix get "X 1"/"X 2" -- not the generic "(2)" collision suffix,
+    which is now only a fallback for names _generic_tab_names didn't
+    already handle."""
     samples = [
-        _sample("Same Name", analysis_ids=(1,)),
-        _sample("Same Name", analysis_ids=(1,)),
+        _sample("S-001", analysis_ids=(1,), form_chemical_name="Same Name"),
+        _sample("S-002", analysis_ids=(1,), form_chemical_name="Same Name"),
     ]
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
         submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
     )
-    assert sheets[0].name == "Same Name"
-    assert sheets[1].name == "Same Name (2)"
+    assert sheets[0].name == "Same Name 1"
+    assert sheets[1].name == "Same Name 2"
 
 
 def test_generic_chemical_sheet_uses_standard_column_widths():
@@ -323,11 +331,91 @@ def test_water_sample_always_uses_dilute_and_shoot_no_chemical_lookup():
 
 
 def test_sheet_names_sanitize_illegal_characters():
-    samples = [_sample("Sample:With/Illegal*Chars", analysis_ids=(1,))]
+    samples = [_sample("S-001", analysis_ids=(1,), form_chemical_name="Chem:With/Illegal*Chars")]
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
         submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
     )
-    for ch in "[]:*?/\\":
+    for ch in "[]:*?/\\<>|":
         assert ch not in sheets[0].name
+
+
+def test_illegal_characters_are_removed_not_replaced_with_a_placeholder():
+    """Confirmed real (RemoveIllegalCharacters' Case Else branch): illegal
+    sheet-name characters are dropped entirely, not swapped for "_"."""
+    samples = [_sample("S-001", analysis_ids=(1,), form_chemical_name="A:B/C")]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "TOC"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert sheets[0].name == "ABC"
+
+
+def test_generic_tab_names_water_single_sample_has_no_number():
+    samples = [_sample("S-001", analysis_ids=(1,))]
+    submission = _submission(samples, request_type=RequestType.WATER)
+    analysis_svc = _FakeAnalysisService({1: "TOC"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert sheets[0].name == "Water"
+
+
+def test_generic_tab_names_water_multiple_samples_all_numbered():
+    samples = [
+        _sample("S-001", analysis_ids=(1,)),
+        _sample("S-002", analysis_ids=(1,)),
+        _sample("S-003", analysis_ids=(1,)),
+    ]
+    submission = _submission(samples, request_type=RequestType.WATER)
+    analysis_svc = _FakeAnalysisService({1: "TOC"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert [s.name for s in sheets] == ["Water 1", "Water 2", "Water 3"]
+
+
+def test_generic_tab_names_unique_chemical_matrix_gets_no_number():
+    samples = [
+        _sample("S-001", analysis_ids=(1,), form_chemical_name="PGME"),
+        _sample("S-002", analysis_ids=(1,), form_chemical_name="IPA"),
+    ]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "TOC"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert [s.name for s in sheets] == ["PGME", "IPA"]
+
+
+def test_generic_tab_names_mixed_unique_and_duplicate_chemical_matrices():
+    samples = [
+        _sample("S-001", analysis_ids=(1,), form_chemical_name="NMP"),
+        _sample("S-002", analysis_ids=(1,), form_chemical_name="PGME"),
+        _sample("S-003", analysis_ids=(1,), form_chemical_name="NMP"),
+    ]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "TOC"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert [s.name for s in sheets] == ["NMP 1", "PGME", "NMP 2"]
+
+
+def test_generic_tab_names_truncates_chemical_matrix_to_28_chars_leaving_room_for_suffix():
+    long_name = "A" * 40
+    samples = [
+        _sample("S-001", analysis_ids=(1,), form_chemical_name=long_name),
+        _sample("S-002", analysis_ids=(1,), form_chemical_name=long_name),
+    ]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "TOC"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert sheets[0].name == "A" * 28 + " 1"
+    assert sheets[1].name == "A" * 28 + " 2"
+    assert len(sheets[0].name) <= 31
+    assert len(sheets[1].name) <= 31

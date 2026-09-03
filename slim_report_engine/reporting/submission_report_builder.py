@@ -14,13 +14,16 @@ sheet per sample. A DM5 customer with a chemical that builder doesn't
 recognize raises a clear error rather than silently falling back to a
 generic path that has no DM5-specific content to offer.
 
-SHEET NAMING: a first-cut scheme (sample_name for Chemical/Water/DM5,
-the Wafer group's sheet title for Wafer), sanitized for Excel's sheet-
-name rules and deduplicated with a numeric suffix on collision. The real
-VBA source's SetChemicalSheetName/SetWaterSheetName have additional
-fidelity (illegal-character scrubbing matching a specific rule set,
-28-char truncation, per-duplicate-matrix incrementing) not yet ported
-here — a known, deliberate simplification, not assumed equivalent.
+SHEET NAMING: for generic Chemical/Water, ported from the real macro's
+SetChemicalSheetName/SetWaterSheetName (modReportCreator.bas) — the
+CHEMICAL MATRIX text (or literal "Water"), not the Sample ID, which is
+what the real system actually shows and what the earlier Sample-ID-based
+scheme got wrong (real Sample IDs are often unreadable delivery-lot/PO
+strings). See _generic_tab_names. DM5 uses chemical_label, Wafer uses the
+group's own sheet title -- both sanitized/deduplicated with the older,
+simpler `_sanitize_sheet_name`/`_dedupe_name` fallback, since neither has
+the same real-per-matrix-duplicate-numbering behavior confirmed for the
+generic path.
 
 SAMPLE-ID STRING ECHO: row_builders.add_header_rows/add_simple_header_row
 deliberately leave column 4 of each section's own "Sample Identification:"
@@ -84,8 +87,13 @@ def build_submission_sheets(
     is_dm5 = customer.name in _DM5_CUSTOMER_NAMES
     used_names: set[str] = set()
     sheets: list[OutputSheet] = []
+    # Precomputed up front, not per-sample -- confirmed real (see
+    # _generic_tab_names): whether a sample's tab gets a numeric suffix
+    # depends on how many OTHER samples in the whole submission share its
+    # chemical matrix, which isn't knowable one sample at a time.
+    generic_tab_names = None if is_dm5 else _generic_tab_names(submission)
 
-    for sample in submission.samples:
+    for i, sample in enumerate(submission.samples):
         if is_dm5:
             chemical = chemical_service.load_chemical(sample.chemical_id)
             chemical_name = chemical.name if chemical is not None else sample.form_chemical_name
@@ -123,7 +131,7 @@ def build_submission_sheets(
         for section in sections:
             if section.rows:
                 section.rows[0].set_value(4, sample_string)
-        name = _dedupe_name(_sanitize_sheet_name(sample.sample_name), used_names)
+        name = _dedupe_name(generic_tab_names[i], used_names)
         sheets.append(
             OutputSheet(
                 name=name,
@@ -194,6 +202,69 @@ def _metals_prep_text(submission: TRSubmission, sample: TRSample, chemical_servi
     if chemical is not None and chemical.metals_prep:
         return chemical.metals_prep
     return _DEFAULT_METALS_PREP
+
+
+_SHEET_NAME_ILLEGAL_CHARS = ":/\\?*[]<>|"
+
+
+def _generic_tab_names(submission: TRSubmission) -> list[str]:
+    """One tab name per sample in submission.samples order — ported from
+    the real macro's SetChemicalSheetName/SetWaterSheetName
+    (modReportCreator.bas), ground truth for the real naming scheme this
+    replaces (the old scheme used the raw Sample ID, which produces
+    unreadable tabs on real ID-like sample IDs -- e.g. a real delivery-lot
+    string instead of the real system's actual "PMAC").
+    """
+    if submission.request_type == RequestType.WATER:
+        return _water_tab_names(len(submission.samples))
+    return _chemical_matrix_tab_names([s.form_chemical_name for s in submission.samples])
+
+
+def _water_tab_names(count: int) -> list[str]:
+    """Confirmed real (SetWaterSheetName): "Water" alone when there's
+    exactly one Water sample in the whole submission; "Water 1".."Water N"
+    (by row/form order) when there's more than one -- Water samples have
+    no chemical-matrix content to group by, so every sample counts as its
+    own occurrence once there's more than one at all.
+    """
+    if count <= 1:
+        return ["Water"] * count
+    return [f"Water {i}" for i in range(1, count + 1)]
+
+
+def _chemical_matrix_tab_names(chemical_matrices: list[str]) -> list[str]:
+    """Confirmed real (SetChemicalSheetName): scrub illegal sheet-name
+    characters (removed entirely, not replaced -- confirmed real:
+    RemoveIllegalCharacters' Case Else branch), truncate to 28 characters
+    (not 31 -- reserves room for a " N" suffix so a real 2-digit
+    duplicate count still fits Excel's 31-character sheet-name limit),
+    then group samples by that truncated value. A chemical matrix that's
+    unique in the submission keeps its plain (truncated) name; one that
+    repeats gets " N" appended to EVERY occurrence, N counted in the
+    samples' own row/form order (1-based) -- not just the 2nd-onward,
+    confirmed real (e.g. real duplicate tabs are "X 1"/"X 2", never a bare
+    "X" alongside "X 2").
+    """
+    truncated = [_scrub_chemical_matrix_for_sheet_name(m)[:28] for m in chemical_matrices]
+    counts: dict[str, int] = {}
+    for t in truncated:
+        counts[t] = counts.get(t, 0) + 1
+
+    running: dict[str, int] = {}
+    names = []
+    for t in truncated:
+        if counts[t] > 1:
+            running[t] = running.get(t, 0) + 1
+            names.append(f"{t} {running[t]}")
+        else:
+            names.append(t)
+    return names
+
+
+def _scrub_chemical_matrix_for_sheet_name(text: str) -> str:
+    for ch in _SHEET_NAME_ILLEGAL_CHARS:
+        text = text.replace(ch, "")
+    return text
 
 
 def _sanitize_sheet_name(name: str) -> str:
