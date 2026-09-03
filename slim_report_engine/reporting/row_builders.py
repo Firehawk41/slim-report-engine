@@ -28,7 +28,7 @@ def add_header_rows(
     in the template itself, not an error here — so it passes result_label
     explicitly rather than this default being "corrected" to match it.
     """
-    top_row = ReportRow(style_name="Normal")
+    top_row = ReportRow(style_name="SampleIdEchoWide")
     top_row.set_value(1, "Specification")
     top_row.set_value(2, "Sample Identification:")
     # Column 4 (sample-string echo) is filled in by the caller assembling
@@ -37,7 +37,7 @@ def add_header_rows(
     # every section on a sheet shares.
     section.add_row(top_row)
 
-    header_row = ReportRow(style_name="HeaderBold")
+    header_row = ReportRow(style_name="ColumnHeader")
     header_row.set_value(2, category_label)
     header_row.set_value(4, result_label)
     header_row.set_value(5, "Recovery")
@@ -82,11 +82,11 @@ def add_simple_header_row(
     always "Recovery", and there is never a third results column
     (no MDL/QL).
     """
-    top_row = ReportRow(style_name="Normal")
+    top_row = ReportRow(style_name="SampleIdEchoSimple")
     top_row.set_value(2, "Sample Identification:")
     section.add_row(top_row)
 
-    header_row = ReportRow(style_name="HeaderBold")
+    header_row = ReportRow(style_name="ColumnHeader")
     header_row.set_value(2, category_label)
     header_row.set_value(4, result_label)
     if second_col_label:

@@ -115,7 +115,7 @@ def _add_common_header_rows(
     section.add_row(_blank_row_wide())
     section.add_row(_blank_row_wide())
 
-    notes_label_row = ReportRow(style_name="Normal", max_columns=MAX_SAMPLE_COLUMNS)
+    notes_label_row = ReportRow(style_name="NormalBold", max_columns=MAX_SAMPLE_COLUMNS)
     notes_label_row.set_value(1, "Notes:")
     section.add_row(notes_label_row)
 
@@ -123,11 +123,11 @@ def _add_common_header_rows(
     mdl_note_row.set_value(1, "Blue font indicates data at or below the MDL")
     section.add_row(mdl_note_row)
 
-    units_row = ReportRow(style_name="Normal", max_columns=MAX_SAMPLE_COLUMNS)
+    units_row = ReportRow(style_name="NormalBold", max_columns=MAX_SAMPLE_COLUMNS)
     units_row.set_value(1, units_note_text)
     section.add_row(units_row)
 
-    sample_id_row = ReportRow(style_name="Normal", max_columns=MAX_SAMPLE_COLUMNS)
+    sample_id_row = ReportRow(style_name="SampleIdEchoWide", max_columns=MAX_SAMPLE_COLUMNS)
     sample_id_row.set_value(1, "Specification")
     sample_id_row.set_value(2, "Sample #:")
     sample_id_row.set_value(4, process_blank_sample_id)
@@ -139,7 +139,7 @@ def _add_common_header_rows(
 
     sample_count = len(slot_sample_ids)
 
-    header_row = ReportRow(style_name="HeaderBold", max_columns=MAX_SAMPLE_COLUMNS)
+    header_row = ReportRow(style_name="ColumnHeader", max_columns=MAX_SAMPLE_COLUMNS)
     header_row.set_value(2, category_label)
     for c in range(4, 4 + sample_count + 1):
         header_row.set_value(c, "Results")

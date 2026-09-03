@@ -23,23 +23,117 @@ def test_normal_style_leaves_default_formatting(ws):
     assert cell.border.left.style is None
 
 
-def test_header_bold_style(ws):
-    report_writer.apply_style(ws, row_index=1, min_col=2, max_col=4, style_name="HeaderBold")
-    for col in (2, 3, 4):
-        cell = ws.cell(row=1, column=col)
-        assert cell.font.bold is True
-        assert cell.border.left.style == "thin"
-        assert cell.alignment.horizontal == "center"
-    # Untouched outside the given column range.
-    assert ws.cell(row=1, column=1).font.bold is not True
+def test_section_title_style_is_bold_no_border_no_fill(ws):
+    """DM5's chemical-label title row (e.g. "NH4OH") -- confirmed real:
+    bold, no border, no fill."""
+    report_writer.apply_style(ws, row_index=1, min_col=1, max_col=5, style_name="SectionTitle")
+    cell = ws.cell(row=1, column=1)
+    assert cell.font.bold is True
+    assert cell.border.left.style is None
+    assert cell.fill.patternType is None
+
+
+def test_sample_id_echo_wide_style(ws):
+    """Confirmed real (Report Creator Template.xlsx, DM5-N/S, Wafers):
+    column 1 = white fill + bold + border; columns 2/3 = pale cyan;
+    column 4+ = pale cyan + bold, extending across every Wafer sample
+    column."""
+    report_writer.apply_style(ws, row_index=1, min_col=1, max_col=6, style_name="SampleIdEchoWide")
+    col1 = ws.cell(row=1, column=1)
+    assert col1.font.bold is True
+    assert col1.fill.fgColor.rgb == "FFFFFFFF"
+    assert col1.border.left.style == "thin"
+
+    col2 = ws.cell(row=1, column=2)
+    assert col2.fill.fgColor.rgb == "FFCCFFFF"
+    assert col2.border.left.style == "thin"
+
+    col4 = ws.cell(row=1, column=4)
+    assert col4.fill.fgColor.rgb == "FFCCFFFF"
+    assert col4.font.bold is True
+    assert col4.alignment.horizontal == "center"
+
+
+def test_sample_id_echo_simple_style_has_no_column_1_border():
+    """Confirmed real: TOC/Electrical/Misc Analysis's Sample-ID row has NO
+    border or fill at all in column 1, unlike the Wide variant."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    report_writer.apply_style(ws, row_index=1, min_col=1, max_col=4, style_name="SampleIdEchoSimple")
+    col1 = ws.cell(row=1, column=1)
+    assert col1.border.left.style is None
+    assert col1.fill.patternType is None
+    col4 = ws.cell(row=1, column=4)
+    assert col4.fill.fgColor.rgb == "FFCCFFFF"
+
+
+def test_sample_id_echo_assay_style_only_styles_columns_2_and_3():
+    """DM5's Assay-shape "Sample #" row -- confirmed real: shifted one
+    column left of the Wide variant, nothing styled outside columns 2/3."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    report_writer.apply_style(ws, row_index=1, min_col=1, max_col=4, style_name="SampleIdEchoAssay")
+    assert ws.cell(row=1, column=1).border.left.style is None
+    assert ws.cell(row=1, column=2).fill.fgColor.rgb == "FFCCFFFF"
+    assert ws.cell(row=1, column=3).fill.fgColor.rgb == "FFCCFFFF"
+    assert ws.cell(row=1, column=4).border.left.style is None
+
+
+def test_column_header_style_not_bold_white_then_light_blue(ws):
+    """Confirmed real: category label (col 2/3) = white, NOT bold;
+    Results/Recovery/MDL (col 4+) = light blue, also NOT bold -- despite
+    the style being named after modReportStyles.bas's "HeaderBold"."""
+    report_writer.apply_style(ws, row_index=2, min_col=1, max_col=6, style_name="ColumnHeader")
+    col2 = ws.cell(row=2, column=2)
+    assert col2.font.bold is not True
+    assert col2.fill.fgColor.rgb == "FFFFFFFF"
+    col4 = ws.cell(row=2, column=4)
+    assert col4.font.bold is not True
+    assert col4.fill.fgColor.rgb == "FF99CCFF"
+    assert col4.alignment.horizontal == "center"
+
+
+def test_column_header_style_column_1_gets_avantgarde_font_no_fill():
+    """DM5's element-panel header row has REAL "Specification" text in
+    column 1 (AvantGarde, no fill) -- generic panels leave it blank, but
+    applying the same font there is harmless since it's invisible."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    report_writer.apply_style(ws, row_index=2, min_col=1, max_col=6, style_name="ColumnHeader")
+    col1 = ws.cell(row=2, column=1)
+    assert col1.font.name == "AvantGarde"
+    assert col1.fill.patternType is None
+    assert col1.border.left.style == "thin"
+
+
+def test_column_header_assay_style_results_start_at_column_3():
+    """DM5's Assay-shape header row -- confirmed real: results (bold,
+    light blue) start one column earlier than the generic ColumnHeader
+    style, and columns 1/2 have no fill at all."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    report_writer.apply_style(ws, row_index=5, min_col=1, max_col=4, style_name="ColumnHeaderAssay")
+    assert ws.cell(row=5, column=1).fill.patternType is None
+    assert ws.cell(row=5, column=2).fill.patternType is None
+    col3 = ws.cell(row=5, column=3)
+    assert col3.fill.fgColor.rgb == "FF99CCFF"
+    assert col3.font.bold is True
 
 
 def test_data_label_style(ws):
     report_writer.apply_style(ws, row_index=2, min_col=1, max_col=1, style_name="DataLabel")
     cell = ws.cell(row=2, column=1)
     assert cell.border.left.style == "thin"
+    assert cell.alignment.horizontal == "center"  # column 1 (spec-value convention)
+
+
+def test_data_label_style_column_2_plus_is_left_aligned():
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    report_writer.apply_style(ws, row_index=2, min_col=1, max_col=3, style_name="DataLabel")
+    cell = ws.cell(row=2, column=2)
     assert cell.alignment.horizontal == "left"
-    assert cell.font.bold is not True
+    assert cell.border.left.style == "thin"
 
 
 def test_data_value_style(ws):
@@ -49,13 +143,28 @@ def test_data_value_style(ws):
     assert cell.alignment.horizontal == "right"
 
 
-def test_section_title_style_bold_centered_wrapped_no_fill_assumed(ws):
-    report_writer.apply_style(ws, row_index=1, min_col=1, max_col=5, style_name="SectionTitle")
-    cell = ws.cell(row=1, column=1)
+def test_summary_row_style_pale_cyan_fill_skips_column_1():
+    """The metals panel's AVERAGE/TOTAL rows -- confirmed real: same pale
+    cyan fill as the Sample-ID row; no real template populates column 1
+    here, so it's left completely unstyled."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    report_writer.apply_style(ws, row_index=40, min_col=1, max_col=6, style_name="SummaryRow")
+    assert ws.cell(row=40, column=1).border.left.style is None
+    col2 = ws.cell(row=40, column=2)
+    assert col2.fill.fgColor.rgb == "FFCCFFFF"
+    assert col2.border.left.style == "thin"
+
+
+def test_normal_bold_style_no_border_no_fill_but_bold():
+    """Wafer's "Notes:" and units-note rows."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    report_writer.apply_style(ws, row_index=3, min_col=1, max_col=1, style_name="NormalBold")
+    cell = ws.cell(row=3, column=1)
     assert cell.font.bold is True
-    assert cell.alignment.horizontal == "center"
-    assert cell.alignment.vertical == "center"
-    assert cell.alignment.wrap_text is True
+    assert cell.border.left.style is None
+    assert cell.fill.patternType is None
 
 
 def test_unknown_style_raises(ws):
@@ -84,10 +193,12 @@ def test_write_row_translates_formula_to_real_a1_range(ws):
 
 
 def test_write_row_applies_style(ws):
-    row = ReportRow(style_name="HeaderBold")
+    row = ReportRow(style_name="ColumnHeader")
     row.set_value(2, "Element")
     report_writer.write_row(ws, row, row_index=1)
-    assert ws.cell(row=1, column=2).font.bold is True
+    cell = ws.cell(row=1, column=2)
+    assert cell.font.bold is not True
+    assert cell.fill.fgColor.rgb == "FFFFFFFF"
 
 
 def test_write_row_unsupported_formula_shape_raises(ws):

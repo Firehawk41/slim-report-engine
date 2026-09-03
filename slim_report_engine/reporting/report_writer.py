@@ -1,17 +1,29 @@
 """Writes ReportSection/ReportRow content into a real Excel worksheet
-using openpyxl — ported from clsReportWriter.cls + modReportStyles.bas.
+using openpyxl — ported from clsReportWriter.cls + modReportStyles.bas,
+then corrected against the REAL templates' actual cell formatting
+(Report Creator Template.xlsx, DM5-N/S Report Template.xlsx, Wafers
+Report Template.xlsx), since modReportStyles.bas's 5-case vocabulary
+turned out to be a simplification, not a precise match — e.g. it marks
+column-header text bold, but the real templates never bold it; it has
+no fill at all, but the real templates use a consistent 3-color palette
+that this module now reproduces.
 
-This project originally planned to keep the actual Excel write VBA-side
-(see README.md's earlier "Architecture direction" section) on the
-assumption that the real template's styling logic was substantial,
-already-solved, hard-to-re-derive work worth reusing as-is. Reading the
-actual VBA source showed the opposite: modReportStyles.bas is a five-case
-named-style vocabulary (~30 lines), and clsReportWriter.WriteRow is just
-a bulk value write, a handful of sparse formula overrides, and one style
-application call — all straightforwardly portable, and doing so collapses
-the open "bridge mechanism" question (a live VBA<->Python COM
-server/subprocess bridge) down to nothing: Python can own the whole
-read-workbook -> parse -> transform -> write-workbook pipeline directly.
+FIDELITY POLICY (per explicit direction, 2026-09-03): borders are
+critical and applied unconditionally per row-type, matching the real
+template's border presence/absence exactly. Font/color/fill are applied
+precisely for every cell that carries real template text (labels,
+headers, titles); cells that are blank in every real template (waiting
+for a technician to fill in results by hand) are left at default
+formatting even where the real template has an incidental/leftover
+font or fill on them (e.g. a blank formula cell's leftover bold
+AvantGarde font) — that's exactly the kind of "probably not important"
+formatting explicitly called out as not worth chasing.
+
+REAL COLOR PALETTE (confirmed identical across all three templates via
+openpyxl, resolving indexed colors against the legacy palette):
+  white   (idx 9,  00FFFFFF) -- "Specification"/category-label cells
+  pale cyan (idx 41, 00CCFFFF) -- the "Sample Identification:"/"Sample #:" row
+  light blue (idx 44, 0099CCFF) -- Results/Recovery/MDL/STDEV/QL column headers
 
 LAYER: Writer — the only module in this package allowed to import
 openpyxl's Worksheet type or touch cell formatting. Everything upstream
@@ -34,11 +46,29 @@ _THIN_BOX_BORDER = Border(
     left=Side(style="thin"), right=Side(style="thin"),
     top=Side(style="thin"), bottom=Side(style="thin"),
 )
-_BOLD = Font(bold=True)
+
+# Real palette, confirmed via openpyxl against all three real templates
+# (see module docstring). Written as opaque ARGB for PatternFill.
+_FILL_WHITE = PatternFill(fill_type="solid", fgColor="FFFFFFFF")
+_FILL_PALE_CYAN = PatternFill(fill_type="solid", fgColor="FFCCFFFF")
+_FILL_LIGHT_BLUE = PatternFill(fill_type="solid", fgColor="FF99CCFF")
+
+# Real fonts, confirmed via openpyxl. The real templates use Arial
+# throughout content cells (a leftover Calibri/AvantGarde shows up only
+# on cells that are blank in every real template -- not reproduced, see
+# FIDELITY POLICY above).
+_FONT_SPEC_LABEL = Font(name="Arial", size=8, bold=True)  # "Specification" / DM5 QC code / spec values
+_FONT_SAMPLE_ECHO_LABEL = Font(name="Arial", size=9)  # "Sample Identification:" / "Sample #:"
+_FONT_SAMPLE_ID_VALUE = Font(name="Arial", size=11, bold=True)  # the sample-ID string cell
+_FONT_COLUMN_HEADER = Font(name="Arial", size=10)  # category label + Results/Recovery/MDL -- NOT bold, confirmed real
+_FONT_HEADER_SPEC_LABEL = Font(name="AvantGarde", size=8, bold=True)  # DM5's header-row "Specification" text specifically
+_FONT_DATA = Font(name="Arial", size=10)  # analyte name/symbol
+_FONT_TITLE = Font(name="Arial", size=12, bold=True)  # DM5 title row
+
 _ALIGN_CENTER = Alignment(horizontal="center")
 _ALIGN_LEFT = Alignment(horizontal="left")
 _ALIGN_RIGHT = Alignment(horizontal="right")
-_ALIGN_CENTER_MIDDLE_WRAP = Alignment(horizontal="center", vertical="center", wrap_text=True)
+_ALIGN_JUSTIFY = Alignment(horizontal="justify")
 
 # R1C1-relative formula shape actually used anywhere in this codebase --
 # same-column ranges only (the metals panel's AVERAGE/TOTAL summary rows).
@@ -49,46 +79,156 @@ _R1C1_SAME_COLUMN_RANGE = re.compile(r"^=([A-Z]+)\(R\[(-?\d+)\]C:R\[(-?\d+)\]C\)
 
 
 def apply_style(ws: Worksheet, row_index: int, min_col: int, max_col: int, style_name: str) -> None:
-    """Ported from modReportStyles.ApplyStyle. Add a case here only when a
-    genuinely new visual treatment is needed -- don't format ad hoc at a
-    call site.
+    """Ported from modReportStyles.ApplyStyle, then corrected against the
+    real templates' actual formatting (see module docstring). Add a case
+    here only when a genuinely new visual treatment is needed -- don't
+    format ad hoc at a call site.
     """
     if style_name == "Normal":
-        return  # no borders, no bold -- default cell appearance
+        return  # no borders, no fill, no bold -- default cell appearance
 
-    if style_name == "HeaderBold":
+    if style_name == "SectionTitle":
+        # DM5's chemical-label title row (e.g. "NH4OH", "CSL9044C").
+        for col in range(min_col, max_col + 1):
+            ws.cell(row=row_index, column=col).font = _FONT_TITLE
+        return
+
+    if style_name == "NormalBold":
+        # No border, no fill (matches "Normal"), but bold text -- Wafer's
+        # "Notes:" and units-note rows specifically.
+        for col in range(min_col, max_col + 1):
+            ws.cell(row=row_index, column=col).font = Font(name="Arial", size=10, bold=True)
+        return
+
+    if style_name == "SampleIdEchoWide":
+        # The "Sample Identification:"/QC-code row for shapes that HAVE a
+        # column-1 label (metals/silicon/ion panels via add_header_rows,
+        # DM5's QC-code row, Wafer's sample-ID row).
         for col in range(min_col, max_col + 1):
             cell = ws.cell(row=row_index, column=col)
-            cell.font = _BOLD
+            cell.border = _THIN_BOX_BORDER
+            if col == 1:
+                cell.font = _FONT_SPEC_LABEL
+                cell.fill = _FILL_WHITE
+                cell.alignment = _ALIGN_JUSTIFY
+            elif col in (2, 3):
+                cell.font = _FONT_SAMPLE_ECHO_LABEL
+                cell.fill = _FILL_PALE_CYAN
+                cell.alignment = _ALIGN_LEFT
+            else:
+                cell.font = _FONT_SAMPLE_ID_VALUE
+                cell.fill = _FILL_PALE_CYAN
+                cell.alignment = _ALIGN_CENTER
+        return
+
+    if style_name == "SampleIdEchoSimple":
+        # Same row, for shapes with NO column-1 label (TOC/Alkalinity/
+        # Bacteria/Electrical/Misc Analysis via add_simple_header_row) --
+        # confirmed real: column 1 has no border or fill at all here,
+        # unlike the "Wide" variant.
+        for col in range(min_col, max_col + 1):
+            cell = ws.cell(row=row_index, column=col)
+            if col == 1:
+                continue
+            cell.border = _THIN_BOX_BORDER
+            if col in (2, 3):
+                cell.font = _FONT_SAMPLE_ECHO_LABEL
+                cell.fill = _FILL_PALE_CYAN
+                cell.alignment = _ALIGN_LEFT
+            else:
+                cell.font = _FONT_SAMPLE_ID_VALUE
+                cell.fill = _FILL_PALE_CYAN
+                cell.alignment = _ALIGN_CENTER
+        return
+
+    if style_name == "SampleIdEchoAssay":
+        # DM5's Assay-shape "Sample #" row (CSL9044C/W-2000/W-7808) --
+        # confirmed real: shifted one column left of the Wide variant
+        # (label in column 2, the stamp target in column 3, nothing in
+        # column 1 or beyond column 3).
+        for col in range(min_col, max_col + 1):
+            cell = ws.cell(row=row_index, column=col)
+            if col not in (2, 3):
+                continue
+            cell.border = _THIN_BOX_BORDER
+            cell.fill = _FILL_PALE_CYAN
+            cell.font = _FONT_SAMPLE_ECHO_LABEL
+        return
+
+    if style_name == "ColumnHeader":
+        # The category-label + Results/Recovery/MDL (or STDEV/QL) row.
+        # Confirmed real: NOT bold, despite the name inherited from
+        # modReportStyles.bas's "HeaderBold". Column 1 is blank in generic
+        # Chemical/Water/Wafer panels (font is applied but invisible) but
+        # carries real "Specification" text in DM5 element panels -- same
+        # AvantGarde/no-fill treatment either way, since it's correct when
+        # populated and harmless when not.
+        for col in range(min_col, max_col + 1):
+            cell = ws.cell(row=row_index, column=col)
             cell.border = _THIN_BOX_BORDER
             cell.alignment = _ALIGN_CENTER
+            if col == 1:
+                cell.font = _FONT_HEADER_SPEC_LABEL
+                continue
+            cell.font = _FONT_COLUMN_HEADER
+            cell.fill = _FILL_WHITE if col in (2, 3) else _FILL_LIGHT_BLUE
+        return
+
+    if style_name == "ColumnHeaderAssay":
+        # DM5's Assay-shape header row ("Current Specifications"/
+        # "Parameter"/result-label/"STDV") -- confirmed real: results
+        # start one column earlier than the Wide shapes (column 3, not
+        # 4), column 1/2 have NO fill at all (not white), and the
+        # results columns ARE bold here (unlike the general ColumnHeader
+        # case) -- a genuinely different treatment, not reusable.
+        for col in range(min_col, max_col + 1):
+            cell = ws.cell(row=row_index, column=col)
+            cell.border = _THIN_BOX_BORDER
+            cell.alignment = _ALIGN_CENTER
+            if col == 1:
+                cell.font = Font(name="Arial", size=9, bold=True)
+            elif col == 2:
+                cell.font = _FONT_COLUMN_HEADER
+            else:
+                cell.font = Font(name="Arial", size=10, bold=True)
+                cell.fill = _FILL_LIGHT_BLUE
         return
 
     if style_name == "DataLabel":
         for col in range(min_col, max_col + 1):
             cell = ws.cell(row=row_index, column=col)
             cell.border = _THIN_BOX_BORDER
-            cell.alignment = _ALIGN_LEFT
+            if col == 1:
+                # Only DM5 element panels populate this (a per-element
+                # spec threshold) -- styled whether or not this
+                # particular row has one, so a populated spec value
+                # elsewhere in the same column looks consistent.
+                cell.font = _FONT_SPEC_LABEL
+                cell.alignment = _ALIGN_CENTER
+            else:
+                cell.font = _FONT_DATA
+                cell.alignment = _ALIGN_LEFT
         return
 
     if style_name == "DataValue":
         for col in range(min_col, max_col + 1):
             cell = ws.cell(row=row_index, column=col)
             cell.border = _THIN_BOX_BORDER
+            cell.font = _FONT_DATA
             cell.alignment = _ALIGN_RIGHT
         return
 
-    if style_name == "SectionTitle":
-        # The real VBA source sets Interior.Pattern = xlSolid without ever
-        # setting Interior.Color -- an unresolved real quirk (the visual
-        # result depends on whatever the cell's inherited/default color
-        # already was), not something to silently invent a color for.
-        # Not currently used by any ported section builder. Bold/centered/
-        # wrapped is applied; the fill is deliberately left unset.
+    if style_name == "SummaryRow":
+        # The metals panel's AVERAGE/TOTAL rows -- confirmed real: same
+        # pale-cyan fill as the Sample-ID row, starting at column 2 (no
+        # real template populates column 1 here).
         for col in range(min_col, max_col + 1):
+            if col == 1:
+                continue
             cell = ws.cell(row=row_index, column=col)
-            cell.font = _BOLD
-            cell.alignment = _ALIGN_CENTER_MIDDLE_WRAP
+            cell.border = _THIN_BOX_BORDER
+            cell.font = _FONT_DATA
+            cell.fill = _FILL_PALE_CYAN
         return
 
     raise ValueError(

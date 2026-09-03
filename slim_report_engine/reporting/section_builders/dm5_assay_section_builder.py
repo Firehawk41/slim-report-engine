@@ -45,7 +45,7 @@ def build_assay(
     """
     section = ReportSection(id)
 
-    title_row = ReportRow(style_name="Normal")
+    title_row = ReportRow(style_name="SectionTitle")
     title_row.set_value(1, chemical_label)
     section.add_row(title_row)
 
@@ -55,13 +55,13 @@ def build_assay(
     if note_text:
         row_builders.add_note_row(section, note_text)
 
-    sample_row = ReportRow(style_name="Normal")
+    sample_row = ReportRow(style_name="SampleIdEchoAssay")
     sample_row.set_value(2, "Sample #")
     # Column 3 (the sample-ID stamp) is intentionally left blank -- an
     # orchestration decision, same as dm5_element_panel_builder.
     section.add_row(sample_row)
 
-    header_row = ReportRow(style_name="HeaderBold")
+    header_row = ReportRow(style_name="ColumnHeaderAssay")
     header_row.set_value(1, "Current Specifications")
     header_row.set_value(2, "Parameter")
     header_row.set_value(3, result_col_label)
@@ -92,7 +92,7 @@ def build_embedded_assay(id: str, spec_range: str, note_text: str = "") -> Repor
     """
     section = ReportSection(id)
 
-    header_row = ReportRow(style_name="HeaderBold")
+    header_row = ReportRow(style_name="ColumnHeaderAssay")
     header_row.set_value(1, "Current Specifications")
     header_row.set_value(2, "Parameter")
     header_row.set_value(3, "% HF")

@@ -55,8 +55,8 @@ def test_summary_rows_use_summary_label():
     section = builder.build_metals_panel(
         "10 Elements", ["Al"], "10 Tr.Elts", _FakeElementService()
     )
-    avg_row = next(r for r in section.rows if r.style_name == "DataLabel" and r.get_value(2) and "AVERAGE" in r.get_value(2))
-    total_row = next(r for r in section.rows if r.style_name == "DataLabel" and r.get_value(2) and "TOTAL" in r.get_value(2))
+    avg_row = next(r for r in section.rows if r.style_name == "SummaryRow" and r.get_value(2) and "AVERAGE" in r.get_value(2))
+    total_row = next(r for r in section.rows if r.style_name == "SummaryRow" and r.get_value(2) and "TOTAL" in r.get_value(2))
     assert avg_row.get_value(2) == "AVERAGE / 10 Tr.Elts"
     assert total_row.get_value(2) == "TOTAL / 10 Tr.Elts"
 

@@ -71,14 +71,14 @@ def _add_summary_rows(section: ReportSection, summary_label: str, first_data_row
     section.add_row(row_builders.blank_row())  # spacer before summary
 
     avg_row_index = section.row_count + 1
-    avg_row = ReportRow(style_name="DataLabel")
+    avg_row = ReportRow(style_name="SummaryRow")
     avg_row.set_value(2, f"AVERAGE / {summary_label}")
     for col in (4, 5, 6):
         _set_range_formula(avg_row, col, "AVERAGE", first_data_row, last_data_row, avg_row_index)
     section.add_row(avg_row)
 
     total_row_index = section.row_count + 1
-    total_row = ReportRow(style_name="DataLabel")
+    total_row = ReportRow(style_name="SummaryRow")
     total_row.set_value(2, f"TOTAL / {summary_label}")
     for col in (4, 6):
         _set_range_formula(total_row, col, "SUM", first_data_row, last_data_row, total_row_index)

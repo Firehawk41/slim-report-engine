@@ -93,7 +93,7 @@ def build_element_panel_with_anions(
 def _add_title_and_notes(
     section: ReportSection, chemical_label: str, notes_text: str, notes_column: int, notes_value: str
 ) -> None:
-    title_row = ReportRow(style_name="Normal")
+    title_row = ReportRow(style_name="SectionTitle")
     title_row.set_value(1, chemical_label)
     section.add_row(title_row)
 
@@ -107,14 +107,14 @@ def _add_title_and_notes(
 
 
 def _add_qc_row_and_header(section: ReportSection, qc_code: str) -> None:
-    qc_row = ReportRow(style_name="Normal")
+    qc_row = ReportRow(style_name="SampleIdEchoWide")
     qc_row.set_value(1, qc_code)
     qc_row.set_value(2, "Sample #:")
     # Column 4 (the sample-ID stamp) is intentionally left blank -- see
     # module docstring.
     section.add_row(qc_row)
 
-    header_row = ReportRow(style_name="HeaderBold")
+    header_row = ReportRow(style_name="ColumnHeader")
     header_row.set_value(1, "Specification")
     header_row.set_value(2, "Element")
     header_row.set_value(4, "Results")
