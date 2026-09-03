@@ -57,6 +57,51 @@ Python isn't.
   to design, since nothing needs to cross the VBA/Python boundary at
   runtime at all.
 
+## Invocation from VBA
+
+The lab-technician-facing trigger stays a familiar Excel button — VBA
+just shells out to this tool and reacts to the result, rather than
+owning any content or formatting logic itself. The contract is process
+exit code plus stderr text, nothing more:
+
+| Exit code | Meaning | stderr |
+|---|---|---|
+| `0` | Success | (empty); stdout has the output file path |
+| `1` | A recognized, actionable data problem (unresolved customer/chemical, unsupported analysis/DM5 chemical, empty submission, missing input file) | A message safe to show the technician directly, e.g. via `MsgBox` |
+| `2` | An unexpected error (a real bug) | A full traceback — not meant for a technician to action, worth logging/reporting instead |
+
+Use `WScript.Shell.Exec` (not `.Run`) so both the exit code and the
+stdout/stderr text are readable from VBA:
+
+```vb
+Public Sub GenerateReport(ByVal InputPath As String)
+    Dim Shell As Object, Exec As Object
+    Dim Cmd As String
+
+    Set Shell = CreateObject("WScript.Shell")
+    Cmd = """C:\Path\To\slim-report-engine.exe"" """ & InputPath & """"
+    Set Exec = Shell.Exec(Cmd)
+
+    Do While Exec.Status = 0  ' WshRunning
+        DoEvents
+    Loop
+
+    Select Case Exec.ExitCode
+        Case 0
+            MsgBox "Report written to: " & Trim(Exec.StdOut.ReadAll()), vbInformation
+        Case 1
+            MsgBox Exec.StdErr.ReadAll(), vbExclamation, "Report Generation Failed"
+        Case Else
+            MsgBox "Unexpected error -- contact support:" & vbCrLf & Exec.StdErr.ReadAll(), vbCritical
+    End Select
+End Sub
+```
+
+`slim_report_engine/cli.py` is the entry point (`slim-report-engine
+<input.xlsx> [-o output.xlsx] [--db DB_URL]`, installed as a console
+script — see Setup below). See its module docstring for the exact exit
+code semantics.
+
 ## Rollout plan
 
 Prove the concept on one local machine first (this one). Once solid,
