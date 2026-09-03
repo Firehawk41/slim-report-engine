@@ -107,14 +107,17 @@ def _add_title_and_notes(
 
 
 def _add_qc_row_and_header(section: ReportSection, qc_code: str) -> None:
-    qc_row = ReportRow(style_name="SampleIdEchoWide")
+    # Confirmed real (NH4OH template): unlike the generic metals panel,
+    # DM5's QC row does NOT merge its echo cell -- column 4 alone carries
+    # the sample-ID string, no add_merge call here.
+    qc_row = ReportRow(style_name="SampleIdEchoWide", row_height=43.5)
     qc_row.set_value(1, qc_code)
     qc_row.set_value(2, "Sample #:")
     # Column 4 (the sample-ID stamp) is intentionally left blank -- see
     # module docstring.
     section.add_row(qc_row)
 
-    header_row = ReportRow(style_name="ColumnHeader")
+    header_row = ReportRow(style_name="ColumnHeader", row_height=28.5)
     header_row.set_value(1, "Specification")
     header_row.set_value(2, "Element")
     header_row.set_value(4, "Results")

@@ -49,7 +49,7 @@ from slim_domain.domain.element.element_service import ElementService
 from slim_domain.domain.tr.enums import RequestType
 from slim_domain.domain.tr.tr_submission import TRSubmission
 
-from slim_report_engine.reporting import chemical_water_report_builder, dm5_non_routine_report_builder
+from slim_report_engine.reporting import chemical_water_report_builder, column_widths, dm5_non_routine_report_builder
 from slim_report_engine.reporting import wafer_submission_builder
 from slim_report_engine.reporting.report_section import ReportSection
 from slim_report_engine.reporting.sample_string_builder import build_sample_string
@@ -62,6 +62,9 @@ class OutputSheet:
     name: str
     sections: tuple[ReportSection, ...]
     header_title: str
+    # Column index (1-based) -> width in points, matching whichever
+    # report family produced this sheet's content -- see column_widths.py.
+    column_widths: dict[int, float]
     # (cell_address, value) pairs to write AFTER the section content --
     # e.g. A1's title, DM5's sample-ID cell. Applied in order.
     extra_cell_stamps: tuple[tuple[str, str], ...] = ()
@@ -100,6 +103,7 @@ def build_submission_sheets(
                     name=name,
                     sections=result.sections,
                     header_title=result.chemical_label,
+                    column_widths=result.column_widths,
                     extra_cell_stamps=((result.name_cell_address, result.sample_string),),
                 )
             )
@@ -119,6 +123,7 @@ def build_submission_sheets(
                 name=name,
                 sections=tuple(sections),
                 header_title=chemical_name,
+                column_widths=column_widths.STANDARD,
                 extra_cell_stamps=(("A1", chemical_name),),
             )
         )
@@ -142,6 +147,7 @@ def _build_wafer_sheets(
                 name=name,
                 sections=(result.section,),
                 header_title=result.sheet_title,
+                column_widths=column_widths.WAFER,
                 extra_cell_stamps=(("A1", result.sheet_title),),
             )
         )

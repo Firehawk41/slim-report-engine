@@ -261,6 +261,23 @@ def write_row(ws: Worksheet, row: ReportRow, row_index: int) -> None:
 
     apply_style(ws, row_index, min_col=1, max_col=row.max_columns, style_name=row.style_name)
 
+    if row.row_height is not None:
+        ws.row_dimensions[row_index].height = row.row_height
+
+    for start_col, end_col in row.merges:
+        ws.merge_cells(
+            start_row=row_index, start_column=start_col, end_row=row_index, end_column=end_col
+        )
+
+
+def apply_column_widths(ws: Worksheet, widths: dict[int, float]) -> None:
+    """widths: column index (1-based) -> width in points, e.g.
+    column_widths.STANDARD. Applied once per sheet by the caller that knows
+    which report family produced it (see submission_report_builder.py).
+    """
+    for col_index, width in widths.items():
+        ws.column_dimensions[get_column_letter(col_index)].width = width
+
 
 def write_section(ws: Worksheet, section: ReportSection, start_row: int = 1) -> int:
     """Writes one section starting at start_row; returns the row

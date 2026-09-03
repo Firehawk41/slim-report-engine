@@ -26,6 +26,7 @@ from datetime import date
 
 from slim_domain.domain.element.element_service import ElementService
 
+from slim_report_engine.reporting import column_widths
 from slim_report_engine.reporting.dm5 import chemical_rules, element_specs
 from slim_report_engine.reporting.report_section import ReportSection
 from slim_report_engine.reporting.sample_string_builder import build_sample_string
@@ -81,6 +82,7 @@ class DM5NonRoutineResult:
     chemical_label: str
     name_cell_address: str
     sample_string: str
+    column_widths: dict[int, float]
 
 
 def is_supported_chemical(chemical_name: str) -> bool:
@@ -116,6 +118,7 @@ def build_non_routine_report(
                 chemical_name, chemical_label, _get_qc_code(chemical_name, location), specs, element_service
             )
         ]
+        widths = column_widths.DM5_ELEMENT
     elif category == "Assay":
         spec_range, parameter_label, result_col_label, note_text = _get_assay_params(chemical_name, location)
         sections = [
@@ -123,6 +126,7 @@ def build_non_routine_report(
                 chemical_name, chemical_label, spec_range, parameter_label, result_col_label, note_text
             )
         ]
+        widths = column_widths.DM5_ASSAY
     elif category == "Composite":
         qc_code, spec_range, note_text, units_note_text, units_note_column = _get_composite_params(
             chemical_name, location
@@ -140,6 +144,10 @@ def build_non_routine_report(
             ),
             dm5_assay_section_builder.build_embedded_assay(f"{chemical_name}_Assay", spec_range, note_text),
         ]
+        # Not independently confirmed against a real composite sheet --
+        # inferred from the element panel dominating the sheet's content
+        # (the embedded Assay block is a small addendum at the bottom).
+        widths = column_widths.DM5_ELEMENT
     else:
         raise ValueError(f"unknown DM5 chemical for {location}: {chemical_name!r}")
 
@@ -156,6 +164,7 @@ def build_non_routine_report(
         chemical_label=chemical_label,
         name_cell_address=cell_address,
         sample_string=sample_string,
+        column_widths=widths,
     )
 
 

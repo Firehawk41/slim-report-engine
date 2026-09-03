@@ -27,11 +27,24 @@ class ReportRow:
     writes to columns it has no content for.
     """
 
-    def __init__(self, style_name: str = "Normal", max_columns: int = DEFAULT_MAX_COLUMNS) -> None:
+    def __init__(
+        self,
+        style_name: str = "Normal",
+        max_columns: int = DEFAULT_MAX_COLUMNS,
+        row_height: float | None = None,
+    ) -> None:
+        """row_height: this row's real template height in points, when it's
+        confirmed to differ meaningfully from Excel's default -- e.g. the
+        sample-ID echo row, which needs extra height for its wrapped
+        "Specification" label. None (the default) leaves the row at
+        whatever height it already has.
+        """
         self.style_name = style_name
         self.max_columns = max_columns
+        self.row_height = row_height
         self._values: dict[int, Any] = {}
         self._formulas: dict[int, str] = {}
+        self._merges: list[tuple[int, int]] = []
 
     def set_value(self, col_index: int, value: Any) -> None:
         self._require_valid_column(col_index)
@@ -63,6 +76,22 @@ class ReportRow:
     @property
     def formula_columns(self) -> list[int]:
         return list(self._formulas.keys())
+
+    def add_merge(self, start_col: int, end_col: int) -> None:
+        """Marks [start_col, end_col] (inclusive, 1-based) as one merged
+        cell on this row once written -- a structural property of the
+        row's real template shape (e.g. the sample-ID echo value always
+        spans 3 columns), independent of whatever value later lands there.
+        """
+        self._require_valid_column(start_col)
+        self._require_valid_column(end_col)
+        if end_col <= start_col:
+            raise ValueError(f"merge range must span more than one column: {start_col}..{end_col}")
+        self._merges.append((start_col, end_col))
+
+    @property
+    def merges(self) -> list[tuple[int, int]]:
+        return list(self._merges)
 
     def _require_valid_column(self, col_index: int) -> None:
         if not 1 <= col_index <= self.max_columns:

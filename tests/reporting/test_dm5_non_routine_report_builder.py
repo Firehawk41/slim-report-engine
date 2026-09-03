@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-from slim_report_engine.reporting import dm5_non_routine_report_builder as orchestrator
+from slim_report_engine.reporting import column_widths, dm5_non_routine_report_builder as orchestrator
 
 
 @dataclass(frozen=True)
@@ -149,3 +149,28 @@ def test_unknown_chemical_raises():
         orchestrator.build_non_routine_report(
             "Not A Real Chemical", "DM5N", date(2026, 3, 5), "S-001", _FakeElementService()
         )
+
+
+# ---------------------------------------------------------------------------
+# column_widths
+# ---------------------------------------------------------------------------
+
+def test_element_category_uses_dm5_element_widths():
+    result = orchestrator.build_non_routine_report(
+        "NH4OH", "DM5N", date(2026, 3, 5), "S-001", _FakeElementService()
+    )
+    assert result.column_widths == column_widths.DM5_ELEMENT
+
+
+def test_assay_category_uses_dm5_assay_widths():
+    result = orchestrator.build_non_routine_report(
+        "CSL9044C", "DM5N", date(2026, 3, 5), "S-001", _FakeElementService()
+    )
+    assert result.column_widths == column_widths.DM5_ASSAY
+
+
+def test_composite_category_uses_dm5_element_widths():
+    result = orchestrator.build_non_routine_report(
+        "0.49%HF", "DM5N", date(2026, 3, 5), "S-001", _FakeElementService()
+    )
+    assert result.column_widths == column_widths.DM5_ELEMENT

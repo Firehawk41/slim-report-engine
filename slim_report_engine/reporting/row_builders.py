@@ -28,16 +28,20 @@ def add_header_rows(
     in the template itself, not an error here — so it passes result_label
     explicitly rather than this default being "corrected" to match it.
     """
-    top_row = ReportRow(style_name="SampleIdEchoWide")
+    top_row = ReportRow(style_name="SampleIdEchoWide", row_height=60.0)
     top_row.set_value(1, "Specification")
     top_row.set_value(2, "Sample Identification:")
     # Column 4 (sample-string echo) is filled in by the caller assembling
     # the whole sheet, not here -- a section builder only knows about ONE
     # section's own content, not the sample-level identity string that
     # every section on a sheet shares.
+    # Real template merges D:F into the one echo-value cell (confirmed:
+    # "Full Analysis (8)" template's D6:F6) -- declared here since it's a
+    # structural property of the row's shape, independent of the value.
+    top_row.add_merge(4, 6)
     section.add_row(top_row)
 
-    header_row = ReportRow(style_name="ColumnHeader")
+    header_row = ReportRow(style_name="ColumnHeader", row_height=25.5)
     header_row.set_value(2, category_label)
     header_row.set_value(4, result_label)
     header_row.set_value(5, "Recovery")
@@ -82,11 +86,17 @@ def add_simple_header_row(
     always "Recovery", and there is never a third results column
     (no MDL/QL).
     """
-    top_row = ReportRow(style_name="SampleIdEchoSimple")
+    top_row = ReportRow(style_name="SampleIdEchoSimple", row_height=60.0)
     top_row.set_value(2, "Sample Identification:")
+    # Real template's merge span on this echo cell varies slightly by
+    # exact block (D:E for some, D:F for others) -- reproducing the
+    # dominant D:F span uniformly rather than chasing each block's own
+    # variant, consistent with this project's general "don't chase every
+    # incidental template inconsistency" policy.
+    top_row.add_merge(4, 6)
     section.add_row(top_row)
 
-    header_row = ReportRow(style_name="ColumnHeader")
+    header_row = ReportRow(style_name="ColumnHeader", row_height=25.5)
     header_row.set_value(2, category_label)
     header_row.set_value(4, result_label)
     if second_col_label:

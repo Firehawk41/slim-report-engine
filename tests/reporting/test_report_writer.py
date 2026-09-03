@@ -201,6 +201,34 @@ def test_write_row_applies_style(ws):
     assert cell.fill.fgColor.rgb == "FFFFFFFF"
 
 
+def test_write_row_applies_row_height_when_set(ws):
+    row = ReportRow(style_name="Normal", row_height=60.0)
+    report_writer.write_row(ws, row, row_index=3)
+    assert ws.row_dimensions[3].height == 60.0
+
+
+def test_write_row_leaves_row_height_unset_by_default(ws):
+    row = ReportRow(style_name="Normal")
+    report_writer.write_row(ws, row, row_index=3)
+    assert ws.row_dimensions[3].height is None
+
+
+def test_write_row_applies_merges(ws):
+    row = ReportRow(style_name="Normal")
+    row.add_merge(4, 6)
+    row.add_merge(2, 3)
+    report_writer.write_row(ws, row, row_index=5)
+    merged = {str(r) for r in ws.merged_cells.ranges}
+    assert "D5:F5" in merged
+    assert "B5:C5" in merged
+
+
+def test_write_row_no_merges_by_default(ws):
+    row = ReportRow(style_name="Normal")
+    report_writer.write_row(ws, row, row_index=5)
+    assert len(ws.merged_cells.ranges) == 0
+
+
 def test_write_row_unsupported_formula_shape_raises(ws):
     row = ReportRow(style_name="Normal")
     row.set_formula(1, "=SUM(R1C1:R5C5)")  # a cross-column shape, never used, not supported
@@ -315,3 +343,18 @@ def test_apply_header_footer_no_lab_lines_survives_save_and_reload(tmp_path):
     assert reloaded_ws.oddHeader.center.text == "TOC"
     assert reloaded_ws.oddHeader.right.text is not None
     assert "Acme Corp" in reloaded_ws.oddHeader.right.text
+
+
+# ---------------------------------------------------------------------------
+# apply_column_widths
+# ---------------------------------------------------------------------------
+
+def test_apply_column_widths_sets_each_listed_column(ws):
+    report_writer.apply_column_widths(ws, {1: 17.14, 3: 6.57})
+    assert ws.column_dimensions["A"].width == 17.14
+    assert ws.column_dimensions["C"].width == 6.57
+
+
+def test_apply_column_widths_leaves_unlisted_columns_alone(ws):
+    report_writer.apply_column_widths(ws, {1: 17.14})
+    assert "B" not in ws.column_dimensions

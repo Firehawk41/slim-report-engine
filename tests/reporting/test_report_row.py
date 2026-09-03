@@ -7,6 +7,48 @@ def test_default_style_and_max_columns():
     row = ReportRow()
     assert row.style_name == "Normal"
     assert row.max_columns == DEFAULT_MAX_COLUMNS
+    assert row.row_height is None
+    assert row.merges == []
+
+
+def test_row_height_is_stored():
+    row = ReportRow(row_height=60.0)
+    assert row.row_height == 60.0
+
+
+def test_add_merge_records_the_range():
+    row = ReportRow()
+    row.add_merge(4, 6)
+    assert row.merges == [(4, 6)]
+
+
+def test_add_merge_supports_multiple_ranges():
+    row = ReportRow(max_columns=19)
+    row.add_merge(2, 3)
+    row.add_merge(9, 11)
+    assert row.merges == [(2, 3), (9, 11)]
+
+
+def test_add_merge_rejects_a_single_column_range():
+    row = ReportRow()
+    with pytest.raises(ValueError):
+        row.add_merge(4, 4)
+    with pytest.raises(ValueError):
+        row.add_merge(5, 4)
+
+
+def test_add_merge_out_of_range_raises():
+    row = ReportRow(max_columns=6)
+    with pytest.raises(ValueError):
+        row.add_merge(4, 7)
+
+
+def test_merges_property_is_a_defensive_copy():
+    row = ReportRow()
+    row.add_merge(4, 6)
+    snapshot = row.merges
+    snapshot.append((1, 2))
+    assert row.merges == [(4, 6)]
 
 
 def test_set_and_get_value():

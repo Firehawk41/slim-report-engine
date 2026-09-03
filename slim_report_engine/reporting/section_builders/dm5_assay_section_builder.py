@@ -45,7 +45,7 @@ def build_assay(
     """
     section = ReportSection(id)
 
-    title_row = ReportRow(style_name="SectionTitle")
+    title_row = ReportRow(style_name="SectionTitle", row_height=18.0)
     title_row.set_value(1, chemical_label)
     section.add_row(title_row)
 
@@ -55,20 +55,22 @@ def build_assay(
     if note_text:
         row_builders.add_note_row(section, note_text)
 
-    sample_row = ReportRow(style_name="SampleIdEchoAssay")
+    # Confirmed real (CSL9044C template): no merge on this row -- the
+    # Assay shape's Sample # value sits in a single unmerged cell.
+    sample_row = ReportRow(style_name="SampleIdEchoAssay", row_height=37.5)
     sample_row.set_value(2, "Sample #")
     # Column 3 (the sample-ID stamp) is intentionally left blank -- an
     # orchestration decision, same as dm5_element_panel_builder.
     section.add_row(sample_row)
 
-    header_row = ReportRow(style_name="ColumnHeaderAssay")
+    header_row = ReportRow(style_name="ColumnHeaderAssay", row_height=24.75)
     header_row.set_value(1, "Current Specifications")
     header_row.set_value(2, "Parameter")
     header_row.set_value(3, result_col_label)
     header_row.set_value(4, "STDV")
     section.add_row(header_row)
 
-    data_row = ReportRow(style_name="DataLabel")
+    data_row = ReportRow(style_name="DataLabel", row_height=20.25)
     data_row.set_value(1, spec_range)
     data_row.set_value(2, parameter_label)
     section.add_row(data_row)

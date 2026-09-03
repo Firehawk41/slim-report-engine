@@ -127,9 +127,13 @@ def _add_common_header_rows(
     units_row.set_value(1, units_note_text)
     section.add_row(units_row)
 
-    sample_id_row = ReportRow(style_name="SampleIdEchoWide", max_columns=MAX_SAMPLE_COLUMNS)
+    sample_id_row = ReportRow(style_name="SampleIdEchoWide", max_columns=MAX_SAMPLE_COLUMNS, row_height=50.25)
     sample_id_row.set_value(1, "Specification")
     sample_id_row.set_value(2, "Sample #:")
+    # Confirmed real ("36 Elements" template): B6:C6 merges the "Sample #:"
+    # label across both columns -- unlike the generic metals panel, which
+    # merges its VALUE cell instead (D:F) and leaves this label unmerged.
+    sample_id_row.add_merge(2, 3)
     sample_id_row.set_value(4, process_blank_sample_id)
     col_index = 5
     for slot_id in slot_sample_ids:
@@ -139,8 +143,10 @@ def _add_common_header_rows(
 
     sample_count = len(slot_sample_ids)
 
-    header_row = ReportRow(style_name="ColumnHeader", max_columns=MAX_SAMPLE_COLUMNS)
+    header_row = ReportRow(style_name="ColumnHeader", max_columns=MAX_SAMPLE_COLUMNS, row_height=25.5)
     header_row.set_value(2, category_label)
+    # Confirmed real: B7:C7 also merges the "Element"/"Anion" label.
+    header_row.add_merge(2, 3)
     for c in range(4, 4 + sample_count + 1):
         header_row.set_value(c, "Results")
     header_row.set_value(6 + sample_count, third_column_header)

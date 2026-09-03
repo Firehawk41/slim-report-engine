@@ -8,7 +8,7 @@ from slim_domain.domain.tr.enums import ProcessingTime, RequestType
 from slim_domain.domain.tr.tr_sample import TRSample
 from slim_domain.domain.tr.tr_submission import TRSubmission
 
-from slim_report_engine.reporting import submission_report_builder as dispatcher
+from slim_report_engine.reporting import column_widths, submission_report_builder as dispatcher
 
 
 @dataclass(frozen=True)
@@ -228,6 +228,36 @@ def test_duplicate_sheet_names_get_deduplicated():
     )
     assert sheets[0].name == "Same Name"
     assert sheets[1].name == "Same Name (2)"
+
+
+def test_generic_chemical_sheet_uses_standard_column_widths():
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "TOC"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert sheets[0].column_widths == column_widths.STANDARD
+
+
+def test_dm5_sheet_uses_dm5_element_column_widths():
+    samples = [_sample("S-001", chemical_id=9)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL, customer_id=2)
+    chemical_svc = _FakeChemicalService({9: _FakeChemical(id=9, name="NH4OH")})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService()
+    )
+    assert sheets[0].column_widths == column_widths.DM5_ELEMENT
+
+
+def test_wafer_sheet_uses_wafer_column_widths():
+    samples = [_sample("Slot-1", analysis_ids=(1,), reporting_units="atoms/cm^2", form_chemical_name="150mm")]
+    submission = _submission(samples, request_type=RequestType.WAFER)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert sheets[0].column_widths == column_widths.WAFER
 
 
 def test_sheet_names_sanitize_illegal_characters():
