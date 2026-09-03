@@ -71,13 +71,13 @@ def build_element_panel(
         element = element_service.get_by_symbol(symbol)
         if element is None:
             raise ValueError(f"unknown element symbol: {symbol!r}")
-        row_builders.add_analyte_row(section, element.name, element.symbol)
+        row_builders.add_analyte_row(section, element.name, element.symbol, max_columns=MAX_SAMPLE_COLUMNS)
 
     for name in additional_element_names or []:
         element = element_service.get_by_name(name.strip())
         if element is None:
             raise ValueError(f"unknown additional element name: {name!r}")
-        row_builders.add_analyte_row(section, element.name, element.symbol)
+        row_builders.add_analyte_row(section, element.name, element.symbol, max_columns=MAX_SAMPLE_COLUMNS)
 
     _add_footer_rows(section, "Analysis by LP-ICPMS.", include_date_of_analysis=True)
     return section
@@ -98,7 +98,7 @@ def build_anion_panel(
     _add_common_header_rows(section, "Anion", units_note_text, process_blank_sample_id, slot_sample_ids, "QL")
 
     for anion in anions:
-        row_builders.add_analyte_row(section, anion.name, anion.symbol)
+        row_builders.add_analyte_row(section, anion.name, anion.symbol, max_columns=MAX_SAMPLE_COLUMNS)
 
     _add_footer_rows(section, "Analysis by LP-IC.", include_date_of_analysis=False)
     return section

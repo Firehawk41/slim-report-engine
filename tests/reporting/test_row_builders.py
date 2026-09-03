@@ -1,4 +1,4 @@
-from slim_report_engine.reporting import row_builders
+from slim_report_engine.reporting import report_row, row_builders
 from slim_report_engine.reporting.report_section import ReportSection
 
 
@@ -30,6 +30,21 @@ def test_add_analyte_row():
     assert row.get_value(2) == "Aluminum"
     assert row.get_value(3) == "Al"
     assert row.get_value(1) is None
+
+
+def test_add_analyte_row_default_max_columns():
+    section = ReportSection("test")
+    row_builders.add_analyte_row(section, "Aluminum", "Al")
+    assert section.rows[0].max_columns == report_row.DEFAULT_MAX_COLUMNS
+
+
+def test_add_analyte_row_custom_max_columns():
+    """Confirmed real (Wafers Report Template.xlsx): Wafer's analyte-row
+    border/fill extends to column 19, not the standard family's 6 --
+    wafer_panel_builder.py passes this explicitly."""
+    section = ReportSection("test")
+    row_builders.add_analyte_row(section, "Aluminum", "Al", max_columns=19)
+    assert section.rows[0].max_columns == 19
 
 
 def test_add_analyte_row_with_spec_omitted():
