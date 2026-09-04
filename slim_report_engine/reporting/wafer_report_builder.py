@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from slim_domain.domain.element.element_service import ElementService
+from slim_domain.domain.tr.enums import ProcessingTime
 
 from slim_report_engine.reporting.presets import analyte_presets, wafer_anion_presets
 from slim_report_engine.reporting.report_section import ReportSection
@@ -55,6 +56,12 @@ class WaferReportResult:
     # "fix" here. This class only signals the decision; it can't perform
     # the actual rich-text formatting (no Excel access at this layer).
     apply_atoms_superscript_quirk: bool
+    # The group's shared ProcessingTime (part of the grouping key -- see
+    # wafer_submission_builder.py -- so every sample on this sheet has the
+    # same value). Threaded through so the caller can decide whether/how
+    # to stamp it (submission_report_builder.py's _processing_time_stamp)
+    # without this module needing to know about report_writer styling.
+    processing_time: ProcessingTime
 
 
 def build_wafer_sheet(
@@ -66,6 +73,7 @@ def build_wafer_sheet(
     slot_sample_labels: list[str],
     additional_element_names: list[str],
     element_service: ElementService,
+    processing_time: ProcessingTime,
 ) -> WaferReportResult:
     """number_of_elements_label: the ALREADY-NORMALIZED selection ("10/26
     Elements" folded into "36 Elements" -- same normalization the legacy
@@ -122,6 +130,7 @@ def build_wafer_sheet(
         section=section,
         sheet_title=f"{wafer_size} Wafers",
         apply_atoms_superscript_quirk=(reporting_units == "atoms/cm^2"),
+        processing_time=processing_time,
     )
 
 

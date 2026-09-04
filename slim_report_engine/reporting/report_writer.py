@@ -329,6 +329,28 @@ def apply_zoom(ws: Worksheet, zoom: int) -> None:
     ws.sheet_view.zoomScale = zoom
 
 
+_PROCESSING_TIME_STAMP_COLORS = {"red": "FFFF0000", "blue": _BLUE}
+
+
+def apply_processing_time_stamp(ws: Worksheet, cell_address: str, text: str, color: str, size: int) -> None:
+    """Confirmed real (every completed report checked with a rush/time-
+    limited sample -- generic Chemical/Water, DM5, and Wafer all showed
+    it): a single-cell stamp on row 1, alongside the title (which already
+    carries a different, row-wide style) -- bold, RED for the RUSH
+    variants ("Same Day RUSH", "Call-in RUSH", Wafer's own "Next Day
+    RUSH"), BLUE for "Next Day Time Limited". A plain "Next Day"/"Two
+    Days"/"Three Days" sample has no stamp at all -- see
+    submission_report_builder.py's _processing_time_stamp, which decides
+    whether to call this at all.
+
+    size: 10 for generic Chemical/Water and DM5, 12 for Wafer (matches its
+    bigger title-row font throughout).
+    """
+    cell = ws[cell_address]
+    cell.value = text
+    cell.font = Font(name="Arial", size=size, bold=True, color=_PROCESSING_TIME_STAMP_COLORS[color])
+
+
 def apply_column_widths(ws: Worksheet, widths: dict[int, float]) -> None:
     """widths: column index (1-based) -> width in points, e.g.
     column_widths.STANDARD. Applied once per sheet by the caller that knows

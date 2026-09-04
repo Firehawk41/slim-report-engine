@@ -100,6 +100,7 @@ def build_wafer_sheets(
                 slot_sample_labels=slot_labels,
                 additional_element_names=additional_names,
                 element_service=element_service,
+                processing_time=key.processing_time,
             )
         )
 

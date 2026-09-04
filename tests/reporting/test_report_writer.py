@@ -446,3 +446,24 @@ def test_apply_column_widths_sets_each_listed_column(ws):
 def test_apply_column_widths_leaves_unlisted_columns_alone(ws):
     report_writer.apply_column_widths(ws, {1: 17.14})
     assert "B" not in ws.column_dimensions
+
+
+# ---------------------------------------------------------------------------
+# apply_processing_time_stamp
+# ---------------------------------------------------------------------------
+
+def test_apply_processing_time_stamp_red(ws):
+    report_writer.apply_processing_time_stamp(ws, "D1", "Same Day RUSH", "red", 10)
+    cell = ws["D1"]
+    assert cell.value == "Same Day RUSH"
+    assert cell.font.bold is True
+    assert cell.font.size == 10
+    assert cell.font.color.rgb == "FFFF0000"
+
+
+def test_apply_processing_time_stamp_blue(ws):
+    report_writer.apply_processing_time_stamp(ws, "E1", "Next Day Time Limited", "blue", 12)
+    cell = ws["E1"]
+    assert cell.value == "Next Day Time Limited"
+    assert cell.font.size == 12
+    assert cell.font.color.rgb == "FF0000FF"

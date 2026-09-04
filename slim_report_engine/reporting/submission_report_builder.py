@@ -49,7 +49,7 @@ from slim_domain.domain.analysis.analysis_service import AnalysisService
 from slim_domain.domain.chemical.chemical_service import ChemicalService
 from slim_domain.domain.customer.customer import Customer
 from slim_domain.domain.element.element_service import ElementService
-from slim_domain.domain.tr.enums import RequestType
+from slim_domain.domain.tr.enums import ProcessingTime, RequestType
 from slim_domain.domain.tr.tr_sample import TRSample
 from slim_domain.domain.tr.tr_submission import TRSubmission
 
@@ -76,6 +76,10 @@ class OutputSheet:
     # Chemical/Water and DM5 templates are zoomed to 90% by default; Wafer
     # is the one exception, at 95% (see _build_wafer_sheets).
     zoom: int = 90
+    # (cell_address, text, color, size) for report_writer.apply_processing_time_stamp
+    # -- None (the default) means this sample's ProcessingTime has no
+    # confirmed real stamp (see _processing_time_stamp).
+    processing_time_stamp: tuple[str, str, str, int] | None = None
 
 
 def build_submission_sheets(
@@ -120,6 +124,7 @@ def build_submission_sheets(
                     header_title=result.chemical_label,
                     column_widths=result.column_widths,
                     extra_cell_stamps=((result.name_cell_address, result.sample_string),),
+                    processing_time_stamp=_processing_time_stamp(sample.processing_time, "E1", 10),
                 )
             )
             continue
@@ -155,6 +160,7 @@ def build_submission_sheets(
                 sections=all_sections,
                 header_title=chemical_name,
                 column_widths=column_widths.STANDARD,
+                processing_time_stamp=_processing_time_stamp(sample.processing_time, "D1", 10),
             )
         )
 
@@ -180,6 +186,7 @@ def _build_wafer_sheets(
                 column_widths=column_widths.WAFER,
                 extra_cell_stamps=(("A1", result.sheet_title),),
                 zoom=95,
+                processing_time_stamp=_processing_time_stamp(result.processing_time, "D1", 12),
             )
         )
     return sheets
@@ -258,6 +265,30 @@ def _ions_prep_text(submission: TRSubmission, sample: TRSample, chemical_service
     if chemical is not None and chemical.ions_prep:
         return chemical.ions_prep
     return None
+
+
+# Confirmed real (every completed report checked with a rush/time-limited
+# sample, across generic Chemical/Water, DM5, and Wafer): a bold RED stamp
+# for the RUSH variants, bold BLUE for "Next Day Time Limited". A plain
+# "Next Day"/"Two Days"/"Three Days" sample gets no stamp at all -- and
+# there's no real evidence either way yet for "Extended Time"/"Five Days"
+# (no real form offers them as literal dropdown text), so they're left
+# unstamped too rather than guessed.
+_PROCESSING_TIME_STAMP_COLORS: dict[ProcessingTime, str] = {
+    ProcessingTime.TIME_LIMITED: "blue",
+    ProcessingTime.SAME_DAY_RUSH: "red",
+    ProcessingTime.CALL_IN_RUSH: "red",
+    ProcessingTime.NEXT_DAY_RUSH: "red",
+}
+
+
+def _processing_time_stamp(
+    processing_time: ProcessingTime, cell_address: str, size: int
+) -> tuple[str, str, str, int] | None:
+    color = _PROCESSING_TIME_STAMP_COLORS.get(processing_time)
+    if color is None:
+        return None
+    return (cell_address, processing_time.label, color, size)
 
 
 _SHEET_NAME_ILLEGAL_CHARS = ":/\\?*[]<>|"

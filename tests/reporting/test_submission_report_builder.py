@@ -328,6 +328,102 @@ def test_wafer_sheet_zoom_is_95():
     assert sheets[0].zoom == 95
 
 
+# ---------------------------------------------------------------------------
+# processing_time_stamp (confirmed real: RUSH variants = red, Time Limited =
+# blue, plain Next Day/Two Days/Three Days = no stamp at all)
+# ---------------------------------------------------------------------------
+
+def test_generic_chemical_next_day_has_no_processing_time_stamp():
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1, processing_time=ProcessingTime.NEXT_DAY)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "TOC"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert sheets[0].processing_time_stamp is None
+
+
+def test_generic_chemical_same_day_rush_stamp():
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1, processing_time=ProcessingTime.SAME_DAY_RUSH)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "TOC"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert sheets[0].processing_time_stamp == ("D1", "Same Day RUSH", "red", 10)
+
+
+def test_generic_chemical_time_limited_stamp():
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1, processing_time=ProcessingTime.TIME_LIMITED)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "TOC"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert sheets[0].processing_time_stamp == ("D1", "Next Day Time Limited", "blue", 10)
+
+
+def test_generic_chemical_call_in_rush_stamp():
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1, processing_time=ProcessingTime.CALL_IN_RUSH)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "TOC"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert sheets[0].processing_time_stamp == ("D1", "Call-in RUSH", "red", 10)
+
+
+def test_generic_chemical_two_days_and_three_days_have_no_stamp():
+    for pt in (ProcessingTime.TWO_DAYS, ProcessingTime.THREE_DAYS):
+        samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1, processing_time=pt)]
+        submission = _submission(samples, request_type=RequestType.CHEMICAL)
+        analysis_svc = _FakeAnalysisService({1: "TOC"})
+        sheets = dispatcher.build_submission_sheets(
+            submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        )
+        assert sheets[0].processing_time_stamp is None
+
+
+def test_dm5_sheet_same_day_rush_stamp_at_e1():
+    samples = [_sample("S-001", chemical_id=9, processing_time=ProcessingTime.SAME_DAY_RUSH)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL, customer_id=2)
+    chemical_svc = _FakeChemicalService({9: _FakeChemical(id=9, name="NH4OH")})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService()
+    )
+    assert sheets[0].processing_time_stamp == ("E1", "Same Day RUSH", "red", 10)
+
+
+def test_wafer_sheet_next_day_rush_stamp_at_d1_size_12():
+    samples = [
+        _sample(
+            "Slot-1", analysis_ids=(1,), reporting_units="atoms/cm^2", form_chemical_name="150mm",
+            processing_time=ProcessingTime.NEXT_DAY_RUSH,
+        )
+    ]
+    submission = _submission(samples, request_type=RequestType.WAFER)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert sheets[0].processing_time_stamp == ("D1", "Next Day RUSH", "red", 12)
+
+
+def test_wafer_sheet_next_day_has_no_stamp():
+    samples = [
+        _sample(
+            "Slot-1", analysis_ids=(1,), reporting_units="atoms/cm^2", form_chemical_name="150mm",
+            processing_time=ProcessingTime.NEXT_DAY,
+        )
+    ]
+    submission = _submission(samples, request_type=RequestType.WAFER)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert sheets[0].processing_time_stamp is None
+
+
 def test_chemical_sample_uses_the_resolved_chemicals_catalog_prep():
     samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1)]
     submission = _submission(samples, request_type=RequestType.CHEMICAL)

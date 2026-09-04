@@ -109,6 +109,8 @@ def run(input_path: Path, output_path: Path, db_url: str | None = None) -> Path:
         )
         for cell_address, value in sheet.extra_cell_stamps:
             ws[cell_address] = value
+        if sheet.processing_time_stamp is not None:
+            report_writer.apply_processing_time_stamp(ws, *sheet.processing_time_stamp)
 
     if form_sheet_name is not None:
         wb.move_sheet(form_sheet_name, offset=len(wb.sheetnames))
