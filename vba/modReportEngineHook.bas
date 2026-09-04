@@ -20,10 +20,16 @@ Attribute VB_Name = "modReportEngineHook"
 '      slim-report-engine.exe lives. Every lab machine's copy of this
 '      module points at the SAME shared path -- ship an update by
 '      replacing that one file, never by redistributing this module.
-'   2. Import this module into the real Testing Request workbook
-'      templates (Chemical/Water/Wafer), assign GenerateReport to a
-'      worksheet button (Developer tab > Insert > Button > Assign
-'      Macro > GenerateReport).
+'   2. This module is meant to live in ONE central place (e.g. the
+'      Personal Macro Workbook or a shared add-in) rather than being
+'      imported into every Testing Request workbook -- GenerateReport
+'      acts on ActiveWorkbook, not ThisWorkbook, specifically so it
+'      works against whatever TR form the technician currently has
+'      open, regardless of where this code itself lives. Assign
+'      GenerateReport to a worksheet button in each real TR form
+'      template (Developer tab > Insert > Button > Assign Macro >
+'      GenerateReport) or a Quick Access Toolbar button -- either way,
+'      click it with the TR form as the active window.
 '
 ' EXIT-CODE CONTRACT
 '   0 -- success; stdout has the generated output file's path
@@ -52,15 +58,22 @@ Private Const TIMEOUT_SECONDS As Long = 60
 
 Public Sub GenerateReport()
 
+    Dim targetWorkbook As Workbook
     Dim inputPath As String
     Dim exitCode As Long
     Dim stdOut As String
     Dim stdErr As String
 
-    If Not EnsureSaved(ThisWorkbook) Then
+    Set targetWorkbook = ActiveWorkbook
+    If targetWorkbook Is Nothing Then
+        MsgBox "No workbook is open.", vbExclamation, "Report Generation Failed"
+        Exit Sub
+    End If
+
+    If Not EnsureSaved(targetWorkbook) Then
         Exit Sub  ' user cancelled the save prompt
     End If
-    inputPath = ThisWorkbook.FullName
+    inputPath = targetWorkbook.FullName
 
     If Not RunReportEngine(inputPath, exitCode, stdOut, stdErr) Then
         MsgBox "Could not start the report engine." & vbCrLf & _
