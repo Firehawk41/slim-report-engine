@@ -71,30 +71,31 @@ exit code plus stderr text, nothing more:
 | `2` | An unexpected error (a real bug) | A full traceback — not meant for a technician to action, worth logging/reporting instead |
 
 Use `WScript.Shell.Exec` (not `.Run`) so both the exit code and the
-stdout/stderr text are readable from VBA:
+stdout/stderr text are readable from VBA. The real, importable module is
+[`vba/modReportEngineHook.bas`](vba/modReportEngineHook.bas) — late-bound
+`CreateObject` calls only (no `Tools > References` entry needed), plus
+the robustness a real production hook needs beyond the bare minimum:
+saves the workbook first (the engine reads from disk, so an unsaved edit
+would otherwise silently generate a report from stale data), a timeout
+so a hung process can't hang Excel forever, and opens the generated
+report automatically on success. A trimmed version of the core call:
 
 ```vb
-Public Sub GenerateReport(ByVal InputPath As String)
-    Dim Shell As Object, Exec As Object
-    Dim Cmd As String
+Set shellObj = CreateObject("WScript.Shell")
+Set execObj = shellObj.Exec("""" & EXE_PATH & """ """ & inputPath & """")
 
-    Set Shell = CreateObject("WScript.Shell")
-    Cmd = """C:\Path\To\slim-report-engine.exe"" """ & InputPath & """"
-    Set Exec = Shell.Exec(Cmd)
+Do While execObj.Status = 0  ' WshRunning
+    DoEvents
+Loop
 
-    Do While Exec.Status = 0  ' WshRunning
-        DoEvents
-    Loop
-
-    Select Case Exec.ExitCode
-        Case 0
-            MsgBox "Report written to: " & Trim(Exec.StdOut.ReadAll()), vbInformation
-        Case 1
-            MsgBox Exec.StdErr.ReadAll(), vbExclamation, "Report Generation Failed"
-        Case Else
-            MsgBox "Unexpected error -- contact support:" & vbCrLf & Exec.StdErr.ReadAll(), vbCritical
-    End Select
-End Sub
+Select Case execObj.ExitCode
+    Case 0
+        MsgBox "Report written to: " & Trim(execObj.StdOut.ReadAll()), vbInformation
+    Case 1
+        MsgBox execObj.StdErr.ReadAll(), vbExclamation, "Report Generation Failed"
+    Case Else
+        MsgBox "Unexpected error -- contact support:" & vbCrLf & execObj.StdErr.ReadAll(), vbCritical
+End Select
 ```
 
 `slim_report_engine/cli.py` is the entry point (`slim-report-engine
