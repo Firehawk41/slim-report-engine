@@ -37,22 +37,47 @@ def test_sample_id_echo_wide_style(ws):
     """Confirmed real (Report Creator Template.xlsx, DM5-N/S, Wafers):
     column 1 = white fill + bold + border; columns 2/3 = pale cyan;
     column 4+ = pale cyan + bold, extending across every Wafer sample
-    column."""
+    column. Column 4's value cell is size 12, vertically centered
+    (previously size 11, no vertical alignment)."""
     report_writer.apply_style(ws, row_index=1, min_col=1, max_col=6, style_name="SampleIdEchoWide")
     col1 = ws.cell(row=1, column=1)
     assert col1.font.bold is True
     assert col1.fill.fgColor.rgb == "FFFFFFFF"
     assert col1.border.left.style == "thin"
+    assert col1.alignment.vertical == "center"
 
     col2 = ws.cell(row=1, column=2)
     assert col2.fill.fgColor.rgb == "FFCCFFFF"
     assert col2.border.left.style == "thin"
+    assert col2.alignment.vertical == "center"
 
     col4 = ws.cell(row=1, column=4)
     assert col4.fill.fgColor.rgb == "FFCCFFFF"
     assert col4.font.bold is True
+    assert col4.font.size == 12
     assert col4.alignment.horizontal == "center"
+    assert col4.alignment.vertical == "center"
     assert col4.alignment.wrap_text is True  # confirmed real (D6 in the real template)
+
+
+def test_sample_id_echo_wide_style_no_border_between_label_and_next_cell():
+    """Confirmed real (every "Sample Identification:" row checked): no
+    border between the label (column 2) and the cell to its right
+    (column 3) -- both sides of that shared edge are omitted."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    report_writer.apply_style(ws, row_index=1, min_col=1, max_col=6, style_name="SampleIdEchoWide")
+    col2 = ws.cell(row=1, column=2)
+    col3 = ws.cell(row=1, column=3)
+    assert col2.border.right is None or col2.border.right.style is None
+    assert col3.border.left is None or col3.border.left.style is None
+    # outer edges and top/bottom stay thin
+    assert col2.border.left.style == "thin"
+    assert col2.border.top.style == "thin"
+    assert col2.border.bottom.style == "thin"
+    assert col3.border.right.style == "thin"
+    assert col3.border.top.style == "thin"
+    assert col3.border.bottom.style == "thin"
 
 
 def test_sample_id_echo_simple_style_has_no_column_1_border():
@@ -66,6 +91,20 @@ def test_sample_id_echo_simple_style_has_no_column_1_border():
     assert col1.fill.patternType is None
     col4 = ws.cell(row=1, column=4)
     assert col4.fill.fgColor.rgb == "FFCCFFFF"
+    assert col4.font.size == 12
+    assert col4.alignment.vertical == "center"
+
+
+def test_sample_id_echo_simple_style_no_border_between_label_and_next_cell():
+    """Same no-border rule as the Wide variant, between columns 2 and 3."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    report_writer.apply_style(ws, row_index=1, min_col=1, max_col=4, style_name="SampleIdEchoSimple")
+    col2 = ws.cell(row=1, column=2)
+    col3 = ws.cell(row=1, column=3)
+    assert col2.border.right is None or col2.border.right.style is None
+    assert col3.border.left is None or col3.border.left.style is None
+    assert col2.alignment.vertical == "center"
 
 
 def test_sample_id_echo_assay_style_only_styles_columns_2_and_3():
@@ -92,6 +131,16 @@ def test_column_header_style_not_bold_white_then_light_blue(ws):
     assert col4.font.bold is not True
     assert col4.fill.fgColor.rgb == "FF99CCFF"
     assert col4.alignment.horizontal == "center"
+
+
+def test_column_header_style_labels_vertically_centered():
+    """Confirmed real (every "Specification"/"Element"/"Results"/
+    "Recovery"/"MDL" label on this row, generic and DM5 both)."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    report_writer.apply_style(ws, row_index=2, min_col=1, max_col=6, style_name="ColumnHeader")
+    for col in range(1, 7):
+        assert ws.cell(row=2, column=col).alignment.vertical == "center"
 
 
 def test_column_header_style_column_1_gets_avantgarde_font_no_fill():

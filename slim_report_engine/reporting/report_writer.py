@@ -46,6 +46,17 @@ _THIN_BOX_BORDER = Border(
     left=Side(style="thin"), right=Side(style="thin"),
     top=Side(style="thin"), bottom=Side(style="thin"),
 )
+# Confirmed real (Report Creator Template.xlsx, every "Sample Identification:"
+# row checked, Wide AND Simple shapes both): NO border between the label
+# cell (column 2) and the cell immediately to its right (column 3) -- top/
+# bottom/outer-left (or outer-right) stay thin, only the shared edge is
+# omitted, on BOTH sides of it.
+_THIN_BOX_BORDER_NO_RIGHT = Border(
+    left=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"),
+)
+_THIN_BOX_BORDER_NO_LEFT = Border(
+    right=Side(style="thin"), top=Side(style="thin"), bottom=Side(style="thin"),
+)
 
 # Real palette, confirmed via openpyxl against all three real templates
 # (see module docstring). Written as opaque ARGB for PatternFill.
@@ -59,7 +70,7 @@ _FILL_LIGHT_BLUE = PatternFill(fill_type="solid", fgColor="FF99CCFF")
 # FIDELITY POLICY above).
 _FONT_SPEC_LABEL = Font(name="Arial", size=8, bold=True)  # "Specification" / DM5 QC code / spec values
 _FONT_SAMPLE_ECHO_LABEL = Font(name="Arial", size=9)  # "Sample Identification:" / "Sample #:"
-_FONT_SAMPLE_ID_VALUE = Font(name="Arial", size=11, bold=True)  # the sample-ID string cell
+_FONT_SAMPLE_ID_VALUE = Font(name="Arial", size=12, bold=True)  # the sample-ID string cell -- confirmed real size 12
 _FONT_COLUMN_HEADER = Font(name="Arial", size=10)  # category label + Results/Recovery/MDL -- NOT bold, confirmed real
 _FONT_HEADER_SPEC_LABEL = Font(name="AvantGarde", size=8, bold=True)  # DM5's header-row "Specification" text specifically
 _FONT_DATA = Font(name="Arial", size=10)  # analyte name/symbol
@@ -73,10 +84,12 @@ _FONT_NORMAL_BOLD_BLUE = Font(name="Arial", size=10, bold=True, color=_BLUE)  # 
 _FONT_NORMAL_BLUE = Font(name="Arial", size=10, color=_BLUE)  # Wafer's equivalent line -- NOT bold
 
 _ALIGN_CENTER = Alignment(horizontal="center")
-_ALIGN_CENTER_WRAP = Alignment(horizontal="center", wrap_text=True)  # the sample-ID echo VALUE cell specifically -- confirmed real (D6 in the real template)
+_ALIGN_CENTER_VCENTER = Alignment(horizontal="center", vertical="center")  # ColumnHeader row specifically -- confirmed real
+_ALIGN_CENTER_WRAP = Alignment(horizontal="center", wrap_text=True, vertical="center")  # the sample-ID echo VALUE cell specifically -- confirmed real (D6 in the real template)
 _ALIGN_LEFT = Alignment(horizontal="left")
+_ALIGN_LEFT_VCENTER = Alignment(horizontal="left", vertical="center")  # the "Sample Identification:"/"Sample #:" label cell specifically -- confirmed real
 _ALIGN_RIGHT = Alignment(horizontal="right")
-_ALIGN_JUSTIFY = Alignment(horizontal="justify")
+_ALIGN_JUSTIFY = Alignment(horizontal="justify", vertical="center")  # the "Specification" label cell -- confirmed real
 
 # R1C1-relative formula shape actually used anywhere in this codebase --
 # same-column ranges only (the metals panel's AVERAGE/TOTAL summary rows).
@@ -128,10 +141,17 @@ def apply_style(ws: Worksheet, row_index: int, min_col: int, max_col: int, style
     if style_name == "SampleIdEchoWide":
         # The "Sample Identification:"/QC-code row for shapes that HAVE a
         # column-1 label (metals/silicon/ion panels via add_header_rows,
-        # DM5's QC-code row, Wafer's sample-ID row).
+        # DM5's QC-code row, Wafer's sample-ID row). Confirmed real: NO
+        # border between columns 2 and 3 (the label sits in column 2;
+        # column 3 is a separate, borderless-on-that-side spacer cell).
         for col in range(min_col, max_col + 1):
             cell = ws.cell(row=row_index, column=col)
-            cell.border = _THIN_BOX_BORDER
+            if col == 2:
+                cell.border = _THIN_BOX_BORDER_NO_RIGHT
+            elif col == 3:
+                cell.border = _THIN_BOX_BORDER_NO_LEFT
+            else:
+                cell.border = _THIN_BOX_BORDER
             if col == 1:
                 cell.font = _FONT_SPEC_LABEL
                 cell.fill = _FILL_WHITE
@@ -139,7 +159,7 @@ def apply_style(ws: Worksheet, row_index: int, min_col: int, max_col: int, style
             elif col in (2, 3):
                 cell.font = _FONT_SAMPLE_ECHO_LABEL
                 cell.fill = _FILL_PALE_CYAN
-                cell.alignment = _ALIGN_LEFT
+                cell.alignment = _ALIGN_LEFT_VCENTER
             else:
                 cell.font = _FONT_SAMPLE_ID_VALUE
                 cell.fill = _FILL_PALE_CYAN
@@ -150,16 +170,21 @@ def apply_style(ws: Worksheet, row_index: int, min_col: int, max_col: int, style
         # Same row, for shapes with NO column-1 label (TOC/Alkalinity/
         # Bacteria/Electrical/Misc Analysis via add_simple_header_row) --
         # confirmed real: column 1 has no border or fill at all here,
-        # unlike the "Wide" variant.
+        # unlike the "Wide" variant; same no-border-between-2-and-3 rule.
         for col in range(min_col, max_col + 1):
             cell = ws.cell(row=row_index, column=col)
             if col == 1:
                 continue
-            cell.border = _THIN_BOX_BORDER
+            if col == 2:
+                cell.border = _THIN_BOX_BORDER_NO_RIGHT
+            elif col == 3:
+                cell.border = _THIN_BOX_BORDER_NO_LEFT
+            else:
+                cell.border = _THIN_BOX_BORDER
             if col in (2, 3):
                 cell.font = _FONT_SAMPLE_ECHO_LABEL
                 cell.fill = _FILL_PALE_CYAN
-                cell.alignment = _ALIGN_LEFT
+                cell.alignment = _ALIGN_LEFT_VCENTER
             else:
                 cell.font = _FONT_SAMPLE_ID_VALUE
                 cell.fill = _FILL_PALE_CYAN
@@ -187,11 +212,12 @@ def apply_style(ws: Worksheet, row_index: int, min_col: int, max_col: int, style
         # Chemical/Water/Wafer panels (font is applied but invisible) but
         # carries real "Specification" text in DM5 element panels -- same
         # AvantGarde/no-fill treatment either way, since it's correct when
-        # populated and harmless when not.
+        # populated and harmless when not. Confirmed real: every label on
+        # this row is vertically centered.
         for col in range(min_col, max_col + 1):
             cell = ws.cell(row=row_index, column=col)
             cell.border = _THIN_BOX_BORDER
-            cell.alignment = _ALIGN_CENTER
+            cell.alignment = _ALIGN_CENTER_VCENTER
             if col == 1:
                 cell.font = _FONT_HEADER_SPEC_LABEL
                 continue
