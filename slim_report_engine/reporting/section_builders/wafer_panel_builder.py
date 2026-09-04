@@ -39,7 +39,7 @@ from __future__ import annotations
 
 from slim_domain.domain.element.element_service import ElementService
 
-from slim_report_engine.reporting import row_builders
+from slim_report_engine.reporting import row_builders, sop_codes
 from slim_report_engine.reporting.analyte import Analyte
 from slim_report_engine.reporting.report_row import ReportRow
 from slim_report_engine.reporting.report_section import ReportSection
@@ -79,7 +79,10 @@ def build_element_panel(
             raise ValueError(f"unknown additional element name: {name!r}")
         row_builders.add_analyte_row(section, element.name, element.symbol, max_columns=MAX_SAMPLE_COLUMNS)
 
-    _add_footer_rows(section, "Analysis by LP-ICPMS.", include_date_of_analysis=True)
+    _add_footer_rows(
+        section, "Analysis by LP-ICPMS.", include_date_of_analysis=True,
+        sop_codes=sop_codes.WAFER_ELEMENT_PANEL_SOP_CODES,
+    )
     return section
 
 
@@ -153,7 +156,12 @@ def _add_common_header_rows(
     section.add_row(header_row)
 
 
-def _add_footer_rows(section: ReportSection, analysis_text: str, include_date_of_analysis: bool) -> None:
+def _add_footer_rows(
+    section: ReportSection,
+    analysis_text: str,
+    include_date_of_analysis: bool,
+    sop_codes: list[str] | None = None,
+) -> None:
     section.add_row(_blank_row_wide())
 
     analysis_row = ReportRow(style_name="Normal", max_columns=MAX_SAMPLE_COLUMNS)
@@ -161,6 +169,9 @@ def _add_footer_rows(section: ReportSection, analysis_text: str, include_date_of
     if include_date_of_analysis:
         analysis_row.set_value(4, "Date of Analysis: ")
     section.add_row(analysis_row)
+
+    if sop_codes:
+        section.add_row(row_builders.test_methods_row(sop_codes, max_columns=MAX_SAMPLE_COLUMNS))
 
     wafer_number_row = ReportRow(style_name="Normal", max_columns=MAX_SAMPLE_COLUMNS)
     wafer_number_row.set_value(4, "Wafer # ")

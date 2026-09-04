@@ -15,7 +15,7 @@ rather than silently deduplicated.
 
 from __future__ import annotations
 
-from slim_report_engine.reporting import row_builders
+from slim_report_engine.reporting import row_builders, sop_codes
 from slim_report_engine.reporting.report_section import ReportSection
 
 
@@ -41,7 +41,9 @@ def build_lpc(id: str) -> ReportSection:
     row_builders.add_simple_header_row(section, "Particles/mL", "Results", "STD Dev")
     for threshold in ("0.10", "0.15", "0.20", "0.30", "0.50", "1.00"):
         row_builders.add_analyte_row(section, _ge_threshold(threshold), "")
-    row_builders.add_footer_row(section, "Analysis by Liquid Particle Counter.")
+    row_builders.add_footer_row(
+        section, "Analysis by Liquid Particle Counter.", sop_codes=sop_codes.SIMPLE_SHAPE_SOP_CODES.get(id)
+    )
     return section
 
 

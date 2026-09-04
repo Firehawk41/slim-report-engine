@@ -24,10 +24,13 @@ def build_ion_panel(
     category_label: str,
     analytes: list[Analyte],
     footer_text: str,
+    sop_codes: list[str] | None = None,
 ) -> ReportSection:
     """category_label: e.g. "Anion"/"Cation" (the column-header label above
     the analyte list). analytes: in display order (see presets/ion_presets.py).
-    footer_text: e.g. "Analysis by IC".
+    footer_text: e.g. "Analysis by IC". sop_codes: see
+    row_builders.add_footer_row / reporting/sop_codes.py -- only a handful
+    of real panels have a confirmed real mapping; None omits the line.
     """
     section = ReportSection(id)
     row_builders.add_header_rows(section, category_label, "QL")
@@ -35,6 +38,6 @@ def build_ion_panel(
     for analyte in analytes:
         row_builders.add_analyte_row(section, analyte.name, analyte.symbol)
 
-    row_builders.add_footer_row(section, footer_text)
+    row_builders.add_footer_row(section, footer_text, sop_codes=sop_codes)
 
     return section

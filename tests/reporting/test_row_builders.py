@@ -93,6 +93,47 @@ def test_add_footer_row_echoes_date_of_analysis():
     assert row.get_value(4) == "Date of Analysis: "
 
 
+def test_add_footer_row_without_sop_codes_has_no_test_methods_row():
+    section = ReportSection("test")
+    row_builders.add_footer_row(section, "Analysis by pH Electrode")
+    assert section.row_count == 2  # footer, trailing blank -- no Test Methods line
+    assert not any("Test Methods" in str(r.get_value(1)) for r in section.rows)
+
+
+def test_add_footer_row_with_sop_codes_inserts_test_methods_row_before_trailing_blank():
+    section = ReportSection("test")
+    row_builders.add_footer_row(section, "Analysis by ICPMS (Evaporation)", sop_codes=["PR-IN14", "PR-IN48"])
+    footer, test_methods, trailing_blank = section.rows
+    assert footer.get_value(1) == "Analysis by ICPMS (Evaporation)"
+    assert test_methods.get_value(1) == "Test Methods: PR-IN14 and PR-IN48."
+    assert trailing_blank.values == {}
+
+
+def test_test_methods_row_single_code_has_trailing_period():
+    row = row_builders.test_methods_row(["PR-IN04"])
+    assert row.get_value(1) == "Test Methods: PR-IN04."
+
+
+def test_test_methods_row_two_codes_joined_with_and():
+    row = row_builders.test_methods_row(["PR-IN46", "PR-IN06"])
+    assert row.get_value(1) == "Test Methods: PR-IN46 and PR-IN06."
+
+
+def test_test_methods_row_three_codes_use_comma_then_and():
+    row = row_builders.test_methods_row(["PR-IN14", "PR-IN48", "PR-IN52"])
+    assert row.get_value(1) == "Test Methods: PR-IN14, PR-IN48 and PR-IN52."
+
+
+def test_test_methods_row_default_max_columns():
+    row = row_builders.test_methods_row(["PR-IN04"])
+    assert row.max_columns == report_row.DEFAULT_MAX_COLUMNS
+
+
+def test_test_methods_row_custom_max_columns():
+    row = row_builders.test_methods_row(["PR-IN27", "PR-IN45"], max_columns=19)
+    assert row.max_columns == 19
+
+
 def test_blank_row_has_no_values():
     row = row_builders.blank_row()
     assert row.style_name == "Normal"

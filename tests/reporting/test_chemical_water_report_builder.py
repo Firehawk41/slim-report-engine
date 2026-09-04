@@ -48,6 +48,14 @@ class _FakeElementService:
         return self._BY_ID.get(element_id)
 
 
+def _footer_text(section):
+    """Some analysis types have a confirmed real SOP mapping (see
+    reporting/sop_codes.py), which inserts a "Test Methods: ..." row
+    between the footer text and the trailing blank -- find the footer row
+    by content instead of assuming it's always second-to-last."""
+    return next(r.get_value(1) for r in section.rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
+
+
 def _sample(analysis_ids: tuple[int, ...], additional_element_ids: tuple[int, ...] = ()) -> TRSample:
     return TRSample(
         sample_name="S-1",
@@ -140,6 +148,23 @@ def test_ion_panel_footer_includes_prep_text():
     assert footer.get_value(1) == "Analysis by IC (Evaporation)"
 
 
+def test_4_anions_panel_has_confirmed_test_methods_row():
+    """Confirmed real (cross-referenced against the intake form's own
+    selection for a real sample) -- see sop_codes.ION_PANEL_SOP_CODES."""
+    svc = _FakeAnalysisService({1: "4 Anions"})
+    sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+    test_methods = next(r for r in sections[0].rows if r.get_value(1) and "Test Methods" in str(r.get_value(1)))
+    assert test_methods.get_value(1) == "Test Methods: PR-IN46 and PR-IN06."
+
+
+def test_5_anions_panel_has_no_confirmed_test_methods_row():
+    """No confirmed real SOP mapping for plain "5 Anions" -- only "4
+    Anions" and "5 Anions + MS Authentication" were cross-referenced."""
+    svc = _FakeAnalysisService({1: "5 Anions"})
+    sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+    assert not any("Test Methods" in str(r.get_value(1)) for r in sections[0].rows)
+
+
 def test_gbp_panel_labeled_analyte():
     svc = _FakeAnalysisService({1: "GBP"})
     sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
@@ -218,7 +243,7 @@ def test_density_lpc_apha_combine_freely_with_no_special_logic():
     svc = _FakeAnalysisService({1: "Density", 2: "Liquid Particle Count", 3: "APHA Color"})
     sections = orchestrator.build_sections(_sample((1, 2, 3)), svc, _FakeElementService())
     assert len(sections) == 3
-    footers = [s.rows[-2].get_value(1) for s in sections]
+    footers = [_footer_text(s) for s in sections]
     assert footers == [
         "Analysis by Gay-Lussac Pycnometer",
         "Analysis by Liquid Particle Counter.",
@@ -257,7 +282,7 @@ def test_assay_dispatches_to_titrations_builder():
     svc = _FakeAnalysisService({1: "Assay"})
     sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
     assert len(sections) == 1
-    assert sections[0].rows[-2].get_value(1) == "Analysis by Auto-Titrator"
+    assert _footer_text(sections[0]) == "Analysis by Auto-Titrator"
 
 
 def test_can_build_sections_true_for_assay():
@@ -334,19 +359,19 @@ def test_metals_panel_uses_caller_supplied_prep_text():
 def test_metals_panel_uses_default_instrument_icpms_when_not_given():
     svc = _FakeAnalysisService({1: "36 Elements"})
     sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
-    assert "ICPMS" in sections[0].rows[-2].get_value(1)
+    assert "ICPMS" in _footer_text(sections[0])
 
 
 def test_metals_panel_uses_caller_supplied_instrument():
     """Confirmed real: a very dirty/nasty matrix, or one that itself
     contains a metal (e.g. NaOH), is manually switched to ICPOES during
-    the quote process."""
+    the quote process -- the stored value has no hyphen, but the real
+    report text does ("ICP-OES")."""
     svc = _FakeAnalysisService({1: "36 Elements"})
     sections = orchestrator.build_sections(
         _sample((1,)), svc, _FakeElementService(), metals_instrument="ICPOES"
     )
-    footer = next(r for r in sections[0].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
-    assert footer.get_value(1) == "Analysis by ICPOES (Evaporation)"
+    assert _footer_text(sections[0]) == "Analysis by ICP-OES (Evaporation)"
 
 
 def test_caller_supplied_instrument_applies_to_additional_elements_block_too():
@@ -355,7 +380,7 @@ def test_caller_supplied_instrument_applies_to_additional_elements_block_too():
         _sample((1,), additional_element_ids=(101, 102)), svc, _FakeElementService(), metals_instrument="ICPOES"
     )
     footers = [r.get_value(1) for r in sections[0].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1))]
-    assert footers == ["Analysis by ICPOES (Evaporation)", "Analysis by ICPOES (Evaporation)"]
+    assert footers == ["Analysis by ICP-OES (Evaporation)", "Analysis by ICP-OES (Evaporation)"]
 
 
 # ---------------------------------------------------------------------------
@@ -391,7 +416,7 @@ def test_additional_elements_alone_build_a_standalone_minimal_panel():
     section = sections[0]
     assert not any(r.get_value(4) == "Additional Elements" for r in section.rows)  # no label -- standalone shape
     assert not any(r.get_value(2) and "AVERAGE" in str(r.get_value(2)) for r in section.rows)  # no summary
-    assert section.rows[-2].get_value(1) == "Analysis by ICPMS (Dilute and Shoot)"
+    assert _footer_text(section) == "Analysis by ICPMS (Dilute and Shoot)"
 
 
 # ---------------------------------------------------------------------------

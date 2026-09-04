@@ -55,3 +55,18 @@ def test_both_footers_present_in_order():
         "Analysis by ICP-OES (Evaporation)",
         "Dissolved Silica Analysis by UV-VIS (Evaporation)",
     ]
+
+
+def test_total_si_has_confirmed_test_methods_row():
+    """Same real footer text, same confirmed real SOP mapping, as the
+    generic metals panel's ICP-OES/Evaporation combo (sop_codes.py)."""
+    section = builder.build_silicon("Silicon", True, False)
+    test_methods = [r.get_value(1) for r in section.rows if r.get_value(1) and "Test Methods" in str(r.get_value(1))]
+    assert test_methods == ["Test Methods: PR-IN02."]
+
+
+def test_dissolved_si_has_no_confirmed_test_methods_row():
+    """No real evidence found for the "Dissolved Silica ... UV-VIS"
+    footer's own SOP code(s)."""
+    section = builder.build_silicon("Silicon", False, True)
+    assert not any("Test Methods" in str(r.get_value(1)) for r in section.rows)

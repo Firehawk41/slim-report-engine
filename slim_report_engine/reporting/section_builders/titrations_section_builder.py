@@ -24,7 +24,7 @@ chemical combination.
 
 from __future__ import annotations
 
-from slim_report_engine.reporting import row_builders
+from slim_report_engine.reporting import row_builders, sop_codes
 from slim_report_engine.reporting.report_section import ReportSection
 
 
@@ -32,7 +32,9 @@ def build_assay(id: str) -> ReportSection:
     section = ReportSection(id)
     row_builders.add_simple_header_row(section, "Assay", "Result", "STDEV")
     row_builders.add_analyte_row(section, "", "%")
-    row_builders.add_footer_row(section, "Analysis by Auto-Titrator")
+    row_builders.add_footer_row(
+        section, "Analysis by Auto-Titrator", sop_codes=sop_codes.SIMPLE_SHAPE_SOP_CODES.get(id)
+    )
     return section
 
 

@@ -165,7 +165,7 @@ def add_note_row(section: ReportSection, text: str) -> None:
     section.add_row(row)
 
 
-def add_footer_row(section: ReportSection, text: str) -> None:
+def add_footer_row(section: ReportSection, text: str, sop_codes: list[str] | None = None) -> None:
     """Confirmed real (every shape checked -- metals/ion panels, Assay,
     LPC): exactly one blank row separates the last content row from
     "Analysis by ...", and exactly one blank row separates it from
@@ -174,6 +174,15 @@ def add_footer_row(section: ReportSection, text: str) -> None:
     already ends in one (e.g. the metals panel's own AVERAGE/TOTAL
     summary already adds its own trailing spacer) so sections never end
     up with two blank rows in a row.
+
+    sop_codes: real ISO17025 SOP codes covering this section (see
+    sop_codes.py) -- when given, a "Test Methods: ..." row is added
+    directly under the footer text row, BEFORE the trailing blank --
+    confirmed real (every real "Test Methods:" line found sits
+    immediately under its own section's "Analysis by ..." footer, not
+    after the blank spacer). None (the default) means no confirmed real
+    evidence yet for this exact combination -- omit the line entirely
+    rather than guess.
     """
     if section.rows and section.rows[-1].values:
         section.add_row(blank_row())
@@ -181,7 +190,27 @@ def add_footer_row(section: ReportSection, text: str) -> None:
     row.set_value(1, text)
     row.set_value(4, "Date of Analysis: ")
     section.add_row(row)
+    if sop_codes:
+        section.add_row(test_methods_row(sop_codes))
     section.add_row(blank_row())
+
+
+def test_methods_row(codes: list[str], max_columns: int | None = None) -> ReportRow:
+    """Confirmed real format: "Test Methods: " + codes joined with ", "
+    between all but the last pair and " and " before the last, always
+    ending in a period. Real reports are inconsistent about the trailing
+    period on a SINGLE-code line (some real reports omit it, no
+    discernible rule -- see sop_codes.py) -- always included here for
+    consistency. max_columns: see add_analyte_row -- Wafer passes its own
+    wide override here too.
+    """
+    row = ReportRow(style_name="Normal", **({"max_columns": max_columns} if max_columns else {}))
+    if len(codes) == 1:
+        text = f"Test Methods: {codes[0]}."
+    else:
+        text = f"Test Methods: {', '.join(codes[:-1])} and {codes[-1]}."
+    row.set_value(1, text)
+    return row
 
 
 def blank_row() -> ReportRow:

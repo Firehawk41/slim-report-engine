@@ -9,8 +9,9 @@ def test_build_assay_shape():
     assert header.get_value(5) == "STDEV"
     assert data.get_value(2) == ""
     assert data.get_value(3) == "%"
-    footer = section.rows[-2]
-    assert footer.get_value(1) == "Analysis by Auto-Titrator"
+    # confirmed real SOP mapping -> Test Methods row precedes the trailing blank
+    assert section.rows[-3].get_value(1) == "Analysis by Auto-Titrator"
+    assert section.rows[-2].get_value(1) == "Test Methods: PR-IN04."
 
 
 def test_build_kf_water_shape():

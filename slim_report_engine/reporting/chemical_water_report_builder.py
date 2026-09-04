@@ -88,6 +88,7 @@ from slim_domain.domain.analysis.analysis_service import AnalysisService
 from slim_domain.domain.element.element_service import ElementService
 from slim_domain.domain.tr.tr_sample import TRSample
 
+from slim_report_engine.reporting import sop_codes
 from slim_report_engine.reporting.presets import analyte_presets, ion_presets
 from slim_report_engine.reporting.report_section import ReportSection
 from slim_report_engine.reporting.section_builders import (
@@ -303,7 +304,10 @@ def _ion_panel(name: str, category_label: str, analytes, prep_text: str) -> Repo
     # Confirmed real (a real Chemical customer's 4-Anions report):
     # "Analysis by IC (<prep>)", not a bare "Analysis by IC" -- the same
     # prep text the sample's metals panel would use.
-    return ion_list_section_builder.build_ion_panel(name, category_label, analytes, f"Analysis by IC ({prep_text})")
+    return ion_list_section_builder.build_ion_panel(
+        name, category_label, analytes, f"Analysis by IC ({prep_text})",
+        sop_codes=sop_codes.ION_PANEL_SOP_CODES.get(name),
+    )
 
 
 def _resolve_additional_element_names(sample: TRSample, element_service: ElementService) -> list[str]:

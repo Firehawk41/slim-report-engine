@@ -15,7 +15,7 @@ gap, reproduce the content verbatim rather than dig further.
 
 from __future__ import annotations
 
-from slim_report_engine.reporting import row_builders
+from slim_report_engine.reporting import row_builders, sop_codes
 from slim_report_engine.reporting.report_section import ReportSection
 
 
@@ -23,7 +23,9 @@ def build_toc(id: str) -> ReportSection:
     section = ReportSection(id)
     row_builders.add_simple_header_row(section, "TOC", "Results", "STDEV", "QL")
     row_builders.add_analyte_row(section, "TOC", "ppb")
-    row_builders.add_footer_row(section, "Analysis by TOC Instrument")
+    row_builders.add_footer_row(
+        section, "Analysis by TOC Instrument", sop_codes=sop_codes.SIMPLE_SHAPE_SOP_CODES.get(id)
+    )
     return section
 
 

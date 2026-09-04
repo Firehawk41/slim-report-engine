@@ -9,8 +9,9 @@ def test_build_toc():
     data = section.rows[2]
     assert data.get_value(2) == "TOC"
     assert data.get_value(3) == "ppb"
-    footer = section.rows[-2]
-    assert footer.get_value(1) == "Analysis by TOC Instrument"
+    # confirmed real SOP mapping -> Test Methods row precedes the trailing blank
+    assert section.rows[-3].get_value(1) == "Analysis by TOC Instrument"
+    assert section.rows[-2].get_value(1) == "Test Methods: PR-IN38."
 
 
 def test_build_alkalinity_has_no_third_column():

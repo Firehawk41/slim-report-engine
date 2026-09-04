@@ -76,6 +76,26 @@ def test_element_panel_footer_has_date_of_analysis():
     assert footer_analysis_row.get_value(4) == "Date of Analysis: "
 
 
+def test_element_panel_test_methods_row_uses_max_sample_columns_width():
+    """Confirmed real (one real Wafer report): the element panel's own
+    Test Methods row exists and has the same wide border/fill extent as
+    every other row on the sheet."""
+    section = builder.build_element_panel(
+        "36 Elements", "note", "PB-ID", ["S1"], ["Al"], _FakeElementService()
+    )
+    test_methods_row = next(r for r in section.rows if r.get_value(1) and "Test Methods" in str(r.get_value(1)))
+    assert test_methods_row.get_value(1) == "Test Methods: PR-IN27 and PR-IN45."
+    assert test_methods_row.max_columns == builder.MAX_SAMPLE_COLUMNS
+
+
+def test_anion_panel_has_no_test_methods_row():
+    """No confirmed real SOP evidence for the anion panel's own
+    "Analysis by LP-IC." footer -- see sop_codes.py."""
+    anions = [Analyte("Chloride", "Cl")]
+    section = builder.build_anion_panel("4 Anions", "ions note", "PB-ID", ["S1"], anions)
+    assert not any("Test Methods" in str(r.get_value(1)) for r in section.rows)
+
+
 def test_additional_elements_appended_after_fixed_panel():
     section = builder.build_element_panel(
         "36 Elements", "note", "PB-ID", ["S1"], ["Al"], _FakeElementService(),

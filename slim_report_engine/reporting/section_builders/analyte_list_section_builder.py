@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from slim_domain.domain.element.element_service import ElementService
 
-from slim_report_engine.reporting import row_builders
+from slim_report_engine.reporting import row_builders, sop_codes
 from slim_report_engine.reporting.report_row import ReportRow
 from slim_report_engine.reporting.report_section import ReportSection
 
@@ -82,7 +82,10 @@ def build_metals_panel(
         row_builders.add_analyte_row(section, element.name, element.symbol)
 
     _add_summary_rows(section, summary_label, first_data_row)
-    row_builders.add_footer_row(section, f"Analysis by {instrument} ({prep_text})")
+    row_builders.add_footer_row(
+        section, f"Analysis by {_display_instrument(instrument)} ({prep_text})",
+        sop_codes=sop_codes.METALS_PANEL_SOP_CODES.get((instrument, prep_text)),
+    )
 
     if additional_element_names:
         add_additional_elements_block(section, additional_element_names, element_service, prep_text, instrument)
@@ -118,7 +121,10 @@ def add_additional_elements_block(
             raise ValueError(f"unknown additional element name: {name!r}")
         row_builders.add_analyte_row(section, element.name, element.symbol)
 
-    row_builders.add_footer_row(section, f"Analysis by {instrument} ({prep_text})")
+    row_builders.add_footer_row(
+        section, f"Analysis by {_display_instrument(instrument)} ({prep_text})",
+        sop_codes=sop_codes.METALS_PANEL_SOP_CODES.get((instrument, prep_text)),
+    )
 
 
 def build_additional_elements_only_panel(
@@ -147,7 +153,10 @@ def build_additional_elements_only_panel(
             raise ValueError(f"unknown additional element name: {name!r}")
         row_builders.add_analyte_row(section, element.name, element.symbol)
 
-    row_builders.add_footer_row(section, f"Analysis by {instrument} ({prep_text})")
+    row_builders.add_footer_row(
+        section, f"Analysis by {_display_instrument(instrument)} ({prep_text})",
+        sop_codes=sop_codes.METALS_PANEL_SOP_CODES.get((instrument, prep_text)),
+    )
     return section
 
 
@@ -178,6 +187,16 @@ def _add_summary_rows(section: ReportSection, summary_label: str, first_data_row
     section.add_row(total_row)
 
     section.add_row(row_builders.blank_row())  # spacer after summary
+
+
+def _display_instrument(instrument: str) -> str:
+    """Chemical.metals_instrument stores "ICPOES" (no hyphen, matching
+    ChemicalService.create_chemical's own param name), but the real report
+    footer text hyphenates it -- "Analysis by ICP-OES (...)" -- confirmed
+    against real data while mining sop_codes.py's mapping. "ICPMS" needs no
+    such translation (real report text matches the stored value verbatim).
+    """
+    return "ICP-OES" if instrument == "ICPOES" else instrument
 
 
 def _set_range_formula(

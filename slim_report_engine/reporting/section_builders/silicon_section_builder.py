@@ -18,7 +18,7 @@ override rather than "corrected" to match metals.
 
 from __future__ import annotations
 
-from slim_report_engine.reporting import row_builders
+from slim_report_engine.reporting import row_builders, sop_codes
 from slim_report_engine.reporting.report_section import ReportSection
 
 
@@ -37,7 +37,13 @@ def build_silicon(id: str, include_total: bool, include_dissolved: bool) -> Repo
         row_builders.add_analyte_row(section, "Colloidal Silica *", "SiO2")
 
     if include_total:
-        row_builders.add_footer_row(section, "Analysis by ICP-OES (Evaporation)")
+        # Same real footer text, same confirmed real SOP mapping, as the
+        # generic metals panel's own ICP-OES/Evaporation combo -- see
+        # sop_codes.METALS_PANEL_SOP_CODES.
+        row_builders.add_footer_row(
+            section, "Analysis by ICP-OES (Evaporation)",
+            sop_codes=sop_codes.METALS_PANEL_SOP_CODES.get(("ICPOES", "Evaporation")),
+        )
     if include_dissolved:
         row_builders.add_footer_row(section, "Dissolved Silica Analysis by UV-VIS (Evaporation)")
     if include_total and include_dissolved:

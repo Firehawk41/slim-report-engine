@@ -329,7 +329,7 @@ def test_chemical_sample_uses_the_resolved_chemicals_catalog_instrument():
     chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid", metals_instrument="ICPOES")})
     sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
     footer = next(r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
-    assert footer.get_value(1) == "Analysis by ICPOES (Evaporation)"
+    assert footer.get_value(1) == "Analysis by ICP-OES (Evaporation)"
 
 
 def test_chemical_sample_with_blank_catalog_instrument_defaults_to_icpms():
