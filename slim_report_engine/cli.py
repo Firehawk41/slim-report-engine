@@ -34,6 +34,7 @@ from slim_domain.domain.analysis.analysis_service import AnalysisService
 from slim_domain.domain.chemical.chemical_service import ChemicalService
 from slim_domain.domain.customer.customer_service import CustomerService
 from slim_domain.domain.element.element_service import ElementService
+from slim_domain.domain.specification.specification_service import SpecificationService
 from slim_domain.domain.tr.tr_form_input_resolver import (
     TRFormInputResolver,
     UnresolvedChemicalError,
@@ -58,6 +59,7 @@ def run(input_path: Path, output_path: Path, db_url: str | None = None) -> Path:
     analysis_svc = AnalysisService(session)
     element_svc = ElementService(session)
     customer_svc = CustomerService(session)
+    specification_svc = SpecificationService(session)
     resolver = TRFormInputResolver(customer_svc, chemical_svc)
     submission_svc = TRSubmissionService(session, chemical_svc, analysis_svc, element_svc, resolver)
 
@@ -78,7 +80,9 @@ def run(input_path: Path, output_path: Path, db_url: str | None = None) -> Path:
         )
 
     try:
-        sheets = build_submission_sheets(submission, customer, chemical_svc, analysis_svc, element_svc)
+        sheets = build_submission_sheets(
+            submission, customer, chemical_svc, analysis_svc, element_svc, specification_svc
+        )
     except ValueError as e:
         raise ReportEngineError(str(e)) from e
 

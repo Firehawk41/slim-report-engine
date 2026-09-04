@@ -374,6 +374,22 @@ def test_metals_panel_uses_default_instrument_icpms_when_not_given():
     assert "ICPMS" in _footer_text(sections[0])
 
 
+def test_metals_specs_thread_through_to_the_panel_column_1():
+    svc = _FakeAnalysisService({1: "36 Elements"})
+    sections = orchestrator.build_sections(
+        _sample((1,)), svc, _FakeElementService(), metals_specs={"Al": 0.3}
+    )
+    al_row = next(r for r in sections[0].rows if r.get_value(3) == "Al")
+    assert al_row.get_value(1) == 0.3
+
+
+def test_metals_specs_default_none_leaves_column_1_blank():
+    svc = _FakeAnalysisService({1: "36 Elements"})
+    sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
+    al_row = next(r for r in sections[0].rows if r.get_value(3) == "Al")
+    assert al_row.get_value(1) is None
+
+
 def test_metals_panel_uses_caller_supplied_instrument():
     """Confirmed real: a very dirty/nasty matrix, or one that itself
     contains a metal (e.g. NaOH), is manually switched to ICPOES during

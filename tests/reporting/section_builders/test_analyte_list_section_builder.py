@@ -56,6 +56,22 @@ def test_build_metals_panel_adds_one_row_per_symbol_in_order():
     assert [r.get_value(2) for r in data_rows] == ["Aluminum", "Antimony", "Arsenic"]
 
 
+def test_build_metals_panel_renders_real_spec_values_by_symbol():
+    section = builder.build_metals_panel(
+        "36 Elements", ["Al", "Sb", "As"], "36 Tr.Elts", _FakeElementService(),
+        specs={"Al": 0.3, "As": 10.0},
+    )
+    al_row, sb_row, as_row = section.rows[2:5]
+    assert al_row.get_value(1) == 0.3
+    assert sb_row.get_value(1) is None  # no spec on file for Sb -- omitted, not guessed
+    assert as_row.get_value(1) == 10.0
+
+
+def test_build_metals_panel_no_specs_leaves_column_1_blank():
+    section = builder.build_metals_panel("36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService())
+    assert section.rows[2].get_value(1) is None
+
+
 def test_build_metals_panel_unknown_symbol_raises():
     with pytest.raises(ValueError):
         builder.build_metals_panel("x", ["Xx"], "label", _FakeElementService())
@@ -132,6 +148,25 @@ def test_build_additional_elements_only_panel_custom_instrument():
         "Additional Elements", ["Antimony"], _FakeElementService(), "Dilute and Shoot", instrument="ICPOES"
     )
     assert section.rows[-2].get_value(1) == "Analysis by ICP-OES (Dilute and Shoot)"
+
+
+def test_add_additional_elements_block_renders_real_spec_values():
+    section = builder.build_metals_panel("36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService())
+    builder.add_additional_elements_block(
+        section, ["Antimony"], _FakeElementService(), "Evaporation", specs={"Sb": 0.5}
+    )
+    sb_row = next(r for r in section.rows if r.get_value(2) == "Antimony")
+    assert sb_row.get_value(1) == 0.5
+
+
+def test_build_additional_elements_only_panel_renders_real_spec_values():
+    section = builder.build_additional_elements_only_panel(
+        "Additional Elements", ["Antimony", "Arsenic"], _FakeElementService(), "Dilute and Shoot",
+        specs={"Sb": 0.5},
+    )
+    sb_row, as_row = section.rows[2], section.rows[3]
+    assert sb_row.get_value(1) == 0.5
+    assert as_row.get_value(1) is None
 
 
 def test_build_metals_panel_with_additional_elements_appends_labeled_block():

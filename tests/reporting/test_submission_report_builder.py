@@ -62,6 +62,17 @@ class _FakeElementService:
         return self._BY_ID.get(element_id)
 
 
+class _FakeSpecificationService:
+    """Defaults to "no specs on file" for everything -- specs_by_ids lets
+    a test opt a specific (customer_id, chemical_id) into real values."""
+
+    def __init__(self, specs_by_ids: dict[tuple[int, int], dict[str, float]] | None = None) -> None:
+        self._specs_by_ids = specs_by_ids or {}
+
+    def get_specs(self, customer_id: int, chemical_id: int, kind: str = "specification") -> dict[str, float]:
+        return dict(self._specs_by_ids.get((customer_id, chemical_id), {}))
+
+
 _CUSTOMER = Customer(
     id=1, name="Acme Corp", street_address="1 Main St",
     city="Springfield", state="IL", postal_code="62701", country="USA",
@@ -122,7 +133,7 @@ def test_generic_chemical_customer_one_sheet_per_sample():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert len(sheets) == 2
     # Confirmed real (SetChemicalSheetName): tab name is the CHEMICAL
@@ -150,7 +161,7 @@ def test_generic_chemical_sample_string_stamped_into_every_section():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "TOC", 2: "Alkalinity"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     expected = "030526-Test Acid Matrix-Acme Corp-S-001"
     real_sections = sheets[0].sections[1:]  # sections[0] is the header preamble
@@ -164,7 +175,7 @@ def test_water_sample_string_uses_the_literal_water_chemical_name():
     submission = _submission(samples, request_type=RequestType.WATER)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].sections[1].rows[0].get_value(4) == "030526-Water-Acme Corp-S-001"
 
@@ -181,7 +192,7 @@ def test_sample_with_multiple_independent_analyses_lands_on_one_sheet():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "36 Elements", 2: "TOC", 3: "Alkalinity"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
 
     assert len(sheets) == 1  # one sheet total, not three
@@ -194,7 +205,7 @@ def test_water_customer_header_title_is_water():
     submission = _submission(samples, request_type=RequestType.WATER)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].header_title == "Water"
 
@@ -204,7 +215,7 @@ def test_dm5_customer_supported_chemical_routes_to_dm5_builder():
     submission = _submission(samples, request_type=RequestType.CHEMICAL, customer_id=2)
     chemical_svc = _FakeChemicalService({9: _FakeChemical(id=9, name="NH4OH")})
     sheets = dispatcher.build_submission_sheets(
-        submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService()
+        submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService(), _FakeSpecificationService()
     )
     assert len(sheets) == 1
     assert sheets[0].name == "NH4OH"
@@ -223,7 +234,7 @@ def test_dm5_composite_chemical_with_nothing_else_requested_gets_plain_panel():
     submission = _submission(samples, request_type=RequestType.CHEMICAL, customer_id=2)
     chemical_svc = _FakeChemicalService({9: _FakeChemical(id=9, name="0.49%HF")})
     sheets = dispatcher.build_submission_sheets(
-        submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService()
+        submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService(), _FakeSpecificationService()
     )
     assert len(sheets[0].sections) == 1
 
@@ -233,7 +244,7 @@ def test_dm5_composite_chemical_with_anions_and_assay_requested_gets_both_blocks
     submission = _submission(samples, request_type=RequestType.CHEMICAL, customer_id=2)
     chemical_svc = _FakeChemicalService({9: _FakeChemical(id=9, name="0.49%HF")})
     analysis_svc = _FakeAnalysisService({1: "4 Anions", 2: "Assay"})
-    sheets = dispatcher.build_submission_sheets(submission, _DM5N, chemical_svc, analysis_svc, _FakeElementService())
+    sheets = dispatcher.build_submission_sheets(submission, _DM5N, chemical_svc, analysis_svc, _FakeElementService(), _FakeSpecificationService())
     assert len(sheets[0].sections) == 2
     assert sheets[0].sections[1].id == "0.49%HF_Assay"
 
@@ -244,7 +255,7 @@ def test_dm5_customer_unsupported_chemical_raises():
     chemical_svc = _FakeChemicalService({9: _FakeChemical(id=9, name="Not A Real DM5 Chemical")})
     with pytest.raises(ValueError, match="not one of the 21 chemicals"):
         dispatcher.build_submission_sheets(
-            submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService()
+            submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService(), _FakeSpecificationService()
         )
 
 
@@ -253,7 +264,7 @@ def test_wafer_request_type_routes_to_wafer_builder_regardless_of_customer():
     submission = _submission(samples, request_type=RequestType.WAFER)
     analysis_svc = _FakeAnalysisService({1: "36 Elements"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert len(sheets) == 1
     assert sheets[0].header_title == "150mm Wafers"
@@ -272,7 +283,7 @@ def test_duplicate_chemical_matrix_gets_numbered_not_deduplicated_with_parens():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].name == "Same Name 1"
     assert sheets[1].name == "Same Name 2"
@@ -283,7 +294,7 @@ def test_generic_chemical_sheet_uses_standard_column_widths():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].column_widths == column_widths.STANDARD
 
@@ -293,7 +304,7 @@ def test_dm5_sheet_uses_dm5_element_column_widths():
     submission = _submission(samples, request_type=RequestType.CHEMICAL, customer_id=2)
     chemical_svc = _FakeChemicalService({9: _FakeChemical(id=9, name="NH4OH")})
     sheets = dispatcher.build_submission_sheets(
-        submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService()
+        submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].column_widths == column_widths.DM5_ELEMENT
 
@@ -303,7 +314,7 @@ def test_dm5_sheet_zoom_is_90():
     submission = _submission(samples, request_type=RequestType.CHEMICAL, customer_id=2)
     chemical_svc = _FakeChemicalService({9: _FakeChemical(id=9, name="NH4OH")})
     sheets = dispatcher.build_submission_sheets(
-        submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService()
+        submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].zoom == 90
 
@@ -313,7 +324,7 @@ def test_wafer_sheet_uses_wafer_column_widths():
     submission = _submission(samples, request_type=RequestType.WAFER)
     analysis_svc = _FakeAnalysisService({1: "36 Elements"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].column_widths == column_widths.WAFER
 
@@ -323,7 +334,7 @@ def test_wafer_sheet_zoom_is_95():
     submission = _submission(samples, request_type=RequestType.WAFER)
     analysis_svc = _FakeAnalysisService({1: "36 Elements"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].zoom == 95
 
@@ -338,7 +349,7 @@ def test_generic_chemical_next_day_has_no_processing_time_stamp():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].processing_time_stamp is None
 
@@ -348,7 +359,7 @@ def test_generic_chemical_same_day_rush_stamp():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].processing_time_stamp == ("D1", "Same Day RUSH", "red", 10)
 
@@ -358,7 +369,7 @@ def test_generic_chemical_time_limited_stamp():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].processing_time_stamp == ("D1", "Next Day Time Limited", "blue", 10)
 
@@ -368,7 +379,7 @@ def test_generic_chemical_call_in_rush_stamp():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].processing_time_stamp == ("D1", "Call-in RUSH", "red", 10)
 
@@ -379,7 +390,7 @@ def test_generic_chemical_two_days_and_three_days_have_no_stamp():
         submission = _submission(samples, request_type=RequestType.CHEMICAL)
         analysis_svc = _FakeAnalysisService({1: "TOC"})
         sheets = dispatcher.build_submission_sheets(
-            submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+            submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
         )
         assert sheets[0].processing_time_stamp is None
 
@@ -389,7 +400,7 @@ def test_dm5_sheet_same_day_rush_stamp_at_e1():
     submission = _submission(samples, request_type=RequestType.CHEMICAL, customer_id=2)
     chemical_svc = _FakeChemicalService({9: _FakeChemical(id=9, name="NH4OH")})
     sheets = dispatcher.build_submission_sheets(
-        submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService()
+        submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].processing_time_stamp == ("E1", "Same Day RUSH", "red", 10)
 
@@ -404,7 +415,7 @@ def test_wafer_sheet_next_day_rush_stamp_at_d1_size_12():
     submission = _submission(samples, request_type=RequestType.WAFER)
     analysis_svc = _FakeAnalysisService({1: "36 Elements"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].processing_time_stamp == ("D1", "Next Day RUSH", "red", 12)
 
@@ -419,7 +430,7 @@ def test_wafer_sheet_next_day_has_no_stamp():
     submission = _submission(samples, request_type=RequestType.WAFER)
     analysis_svc = _FakeAnalysisService({1: "36 Elements"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].processing_time_stamp is None
 
@@ -429,11 +440,38 @@ def test_chemical_sample_uses_the_resolved_chemicals_catalog_prep():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "36 Elements"})
     chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid", metals_prep="ICPMS Digestion")})
-    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
+    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService(), _FakeSpecificationService())
     footer = next(
         r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
     )
     assert footer.get_value(1) == "Analysis by ICPMS (ICPMS Digestion)"
+
+
+def test_chemical_sample_uses_the_resolved_customer_and_chemicals_real_specs():
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid")})
+    spec_svc = _FakeSpecificationService({(_CUSTOMER.id, 1): {"Al": 0.3}})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService(), spec_svc
+    )
+    al_row = next(r for r in sheets[0].sections[1].rows if r.get_value(3) == "Al")
+    assert al_row.get_value(1) == 0.3
+
+
+def test_water_sample_never_gets_specs_no_chemical_record_to_key_on():
+    samples = [_sample("S-001", analysis_ids=(1,))]
+    submission = _submission(samples, request_type=RequestType.WATER)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    # even if the fake service WOULD return something for this pair, Water
+    # has no Chemical record to resolve chemical_id from at all
+    spec_svc = _FakeSpecificationService({(_CUSTOMER.id, 0): {"Al": 0.3}})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), spec_svc
+    )
+    al_row = next(r for r in sheets[0].sections[1].rows if r.get_value(3) == "Al")
+    assert al_row.get_value(1) is None
 
 
 def test_chemical_sample_uses_the_resolved_chemicals_catalog_instrument():
@@ -444,7 +482,7 @@ def test_chemical_sample_uses_the_resolved_chemicals_catalog_instrument():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "36 Elements"})
     chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid", metals_instrument="ICPOES")})
-    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
+    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService(), _FakeSpecificationService())
     footer = next(r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
     assert footer.get_value(1) == "Analysis by ICP-OES (Evaporation)"
 
@@ -454,7 +492,7 @@ def test_chemical_sample_with_blank_catalog_instrument_defaults_to_icpms():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "36 Elements"})
     chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid")})
-    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
+    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService(), _FakeSpecificationService())
     footer = next(r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
     assert "ICPMS" in footer.get_value(1)
 
@@ -464,7 +502,7 @@ def test_water_sample_always_uses_icpms_no_chemical_lookup():
     submission = _submission(samples, request_type=RequestType.WATER)
     analysis_svc = _FakeAnalysisService({1: "36 Elements"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     footer = next(r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by" in str(r.get_value(1)))
     assert "ICPMS" in footer.get_value(1)
@@ -475,7 +513,7 @@ def test_chemical_sample_with_blank_catalog_prep_defaults_to_evaporation():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "36 Elements"})
     chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid")})  # metals_prep="" (blank)
-    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
+    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService(), _FakeSpecificationService())
     footer = next(
         r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
     )
@@ -487,7 +525,7 @@ def test_water_sample_always_uses_dilute_and_shoot_no_chemical_lookup():
     submission = _submission(samples, request_type=RequestType.WATER)
     analysis_svc = _FakeAnalysisService({1: "36 Elements"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     footer = next(
         r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
@@ -505,7 +543,7 @@ def test_chemical_sample_with_no_ions_prep_on_file_gets_bare_ic_footer():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "4 Anions"})
     chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid", metals_prep="Evaporation")})
-    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
+    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService(), _FakeSpecificationService())
     footer = next(r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by IC" in str(r.get_value(1)))
     assert footer.get_value(1) == "Analysis by IC"
 
@@ -517,7 +555,7 @@ def test_chemical_sample_uses_the_resolved_chemicals_catalog_ions_prep():
     chemical_svc = _FakeChemicalService(
         {1: _FakeChemical(id=1, name="Test Acid", metals_prep="Dilute and Shoot", ions_prep="Evaporation")}
     )
-    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
+    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService(), _FakeSpecificationService())
     footer = next(r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by IC" in str(r.get_value(1)))
     assert footer.get_value(1) == "Analysis by IC (Evaporation)"
 
@@ -527,7 +565,7 @@ def test_water_sample_always_gets_bare_ic_footer_no_chemical_lookup():
     submission = _submission(samples, request_type=RequestType.WATER)
     analysis_svc = _FakeAnalysisService({1: "4 Anions"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     footer = next(r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by IC" in str(r.get_value(1)))
     assert footer.get_value(1) == "Analysis by IC"
@@ -542,7 +580,7 @@ def test_generic_chemical_sheet_zoom_is_90():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "36 Elements"})
     chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid")})
-    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
+    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService(), _FakeSpecificationService())
     assert sheets[0].zoom == 90
 
 
@@ -558,7 +596,7 @@ def test_customer_additional_elements_prep_overrides_only_the_second_footer():
     chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid", metals_prep="Evaporation")})
     customer_with_override = _CUSTOMER.model_copy(update={"additional_elements_prep": "Alternate Method"})
     sheets = dispatcher.build_submission_sheets(
-        submission, customer_with_override, chemical_svc, analysis_svc, _FakeElementService()
+        submission, customer_with_override, chemical_svc, analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     footers = [
         r.get_value(1) for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
@@ -572,7 +610,7 @@ def test_customer_with_no_additional_elements_prep_override_uses_same_prep_both_
     analysis_svc = _FakeAnalysisService({1: "36 Elements"})
     chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid", metals_prep="Evaporation")})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     footers = [
         r.get_value(1) for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
@@ -585,7 +623,7 @@ def test_sheet_names_sanitize_illegal_characters():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     for ch in "[]:*?/\\<>|":
         assert ch not in sheets[0].name
@@ -598,7 +636,7 @@ def test_illegal_characters_are_removed_not_replaced_with_a_placeholder():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].name == "ABC"
 
@@ -608,7 +646,7 @@ def test_generic_tab_names_water_single_sample_has_no_number():
     submission = _submission(samples, request_type=RequestType.WATER)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].name == "Water"
 
@@ -622,7 +660,7 @@ def test_generic_tab_names_water_multiple_samples_all_numbered():
     submission = _submission(samples, request_type=RequestType.WATER)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert [s.name for s in sheets] == ["Water 1", "Water 2", "Water 3"]
 
@@ -635,7 +673,7 @@ def test_generic_tab_names_unique_chemical_matrix_gets_no_number():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert [s.name for s in sheets] == ["PGME", "IPA"]
 
@@ -649,7 +687,7 @@ def test_generic_tab_names_mixed_unique_and_duplicate_chemical_matrices():
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert [s.name for s in sheets] == ["NMP 1", "PGME", "NMP 2"]
 
@@ -663,7 +701,7 @@ def test_generic_tab_names_truncates_chemical_matrix_to_28_chars_leaving_room_fo
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
     analysis_svc = _FakeAnalysisService({1: "TOC"})
     sheets = dispatcher.build_submission_sheets(
-        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService(), _FakeSpecificationService()
     )
     assert sheets[0].name == "A" * 28 + " 1"
     assert sheets[1].name == "A" * 28 + " 2"

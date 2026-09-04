@@ -37,12 +37,24 @@ def build_metals_panel(
     prep_text: str = "Evaporation",
     additional_element_names: list[str] | None = None,
     instrument: str = "ICPMS",
+    specs: dict[str, float] | None = None,
 ) -> ReportSection:
     """symbols: element symbols in display order. summary_label: the text
     that appears in "AVERAGE / <summary_label>" and "TOTAL / <summary_label>"
     — e.g. "36 Tr.Elts" for the 10/26/36-Elements selections (all three
     render the same 36 analytes; only this label differs), "67 Tr.Elts",
     "USP Tr.Elts".
+
+    specs: element symbol -> spec threshold, from the resolved customer's
+    real per-chemical specification (Specification domain, slim-domain) —
+    a symbol absent from specs (or specs itself being None/empty, e.g. no
+    real spec on file for this customer+chemical) simply gets no column-1
+    value, same convention DM5's own element panel already uses
+    (dm5_element_panel_builder.py). Unlike DM5 (a small fixed set of
+    chemicals with specs hardcoded as static data), the generic path
+    serves the full real customer/chemical catalog, which is exactly what
+    the real Specifications_Database table exists for — looked up per
+    sample by the caller (submission_report_builder.py), not here.
 
     prep_text: the parenthesized method text in the footer ("Analysis by
     <instrument> (<prep_text>)") — the catalog's real per-chemical/per-matrix
@@ -79,7 +91,7 @@ def build_metals_panel(
         element = element_service.get_by_symbol(symbol)
         if element is None:
             raise ValueError(f"unknown element symbol in panel definition: {symbol!r}")
-        row_builders.add_analyte_row(section, element.name, element.symbol)
+        row_builders.add_analyte_row_with_spec(section, element.name, element.symbol, (specs or {}).get(symbol))
 
     _add_summary_rows(section, summary_label, first_data_row)
     row_builders.add_footer_row(
@@ -88,7 +100,9 @@ def build_metals_panel(
     )
 
     if additional_element_names:
-        add_additional_elements_block(section, additional_element_names, element_service, prep_text, instrument)
+        add_additional_elements_block(
+            section, additional_element_names, element_service, prep_text, instrument, specs
+        )
 
     return section
 
@@ -99,6 +113,7 @@ def add_additional_elements_block(
     element_service: ElementService,
     prep_text: str,
     instrument: str = "ICPMS",
+    specs: dict[str, float] | None = None,
 ) -> None:
     """Appends a labeled additional-elements block to an EXISTING metals
     panel section, in place -- confirmed real layout (two different real
@@ -106,10 +121,11 @@ def add_additional_elements_block(
     provided by the panel's own preceding add_footer_row call -- no
     explicit blank added here, to avoid a double gap), one label row
     ("Additional Elements" in column 4, no repeated column-header row),
-    one analyte row per element (no per-element spec, no AVERAGE/TOTAL),
-    then its own complete footer -- same shape as the panel's own footer,
-    just a second one (add_footer_row supplies its own leading/trailing
-    blank rows).
+    one analyte row per element (same specs dict as the main panel, since
+    it's the SAME customer+chemical, just different elements; no
+    AVERAGE/TOTAL), then its own complete footer -- same shape as the
+    panel's own footer, just a second one (add_footer_row supplies its
+    own leading/trailing blank rows).
     """
     label_row = ReportRow(style_name="Normal")
     label_row.set_value(4, "Additional Elements")
@@ -119,7 +135,7 @@ def add_additional_elements_block(
         element = element_service.get_by_name(name.strip())
         if element is None:
             raise ValueError(f"unknown additional element name: {name!r}")
-        row_builders.add_analyte_row(section, element.name, element.symbol)
+        row_builders.add_analyte_row_with_spec(section, element.name, element.symbol, (specs or {}).get(element.symbol))
 
     row_builders.add_footer_row(
         section, f"Analysis by {_display_instrument(instrument)} ({prep_text})",
@@ -133,6 +149,7 @@ def build_additional_elements_only_panel(
     element_service: ElementService,
     prep_text: str,
     instrument: str = "ICPMS",
+    specs: dict[str, float] | None = None,
 ) -> ReportSection:
     """The shape when additional elements are the ONLY thing requested on a
     sample -- no catalog metals-panel selection at all -- confirmed real
@@ -142,7 +159,10 @@ def build_additional_elements_only_panel(
     the requested elements, but NO "Additional Elements" label (that label
     is specific to the two-block shape used when a catalog panel is ALSO
     present) and no AVERAGE/TOTAL summary (there's no real "panel" being
-    summarized, just a short ad hoc list).
+    summarized, just a short ad hoc list). specs: same convention as
+    build_metals_panel -- always empty for Water (no Chemical record to
+    look specs up against), populated for Chemical when the resolved
+    customer+chemical has one on file.
     """
     section = ReportSection(id)
     row_builders.add_header_rows(section, "Element", "MDL")
@@ -151,7 +171,7 @@ def build_additional_elements_only_panel(
         element = element_service.get_by_name(name.strip())
         if element is None:
             raise ValueError(f"unknown additional element name: {name!r}")
-        row_builders.add_analyte_row(section, element.name, element.symbol)
+        row_builders.add_analyte_row_with_spec(section, element.name, element.symbol, (specs or {}).get(element.symbol))
 
     row_builders.add_footer_row(
         section, f"Analysis by {_display_instrument(instrument)} ({prep_text})",

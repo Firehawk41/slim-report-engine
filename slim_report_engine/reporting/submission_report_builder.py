@@ -49,6 +49,7 @@ from slim_domain.domain.analysis.analysis_service import AnalysisService
 from slim_domain.domain.chemical.chemical_service import ChemicalService
 from slim_domain.domain.customer.customer import Customer
 from slim_domain.domain.element.element_service import ElementService
+from slim_domain.domain.specification.specification_service import SpecificationService
 from slim_domain.domain.tr.enums import ProcessingTime, RequestType
 from slim_domain.domain.tr.tr_sample import TRSample
 from slim_domain.domain.tr.tr_submission import TRSubmission
@@ -88,8 +89,13 @@ def build_submission_sheets(
     chemical_service: ChemicalService,
     analysis_service: AnalysisService,
     element_service: ElementService,
+    specification_service: SpecificationService,
 ) -> list[OutputSheet]:
     if submission.request_type == RequestType.WAFER:
+        # Wafer has no real spec-value column on any of its panels
+        # (confirmed: neither element nor anion panel rows have a
+        # column-1 spec slot at all) -- specification_service is simply
+        # unused on this path.
         return _build_wafer_sheets(submission, customer, analysis_service, element_service)
 
     is_dm5 = customer.name in _DM5_CUSTOMER_NAMES
@@ -133,9 +139,10 @@ def build_submission_sheets(
         metals_instrument = _metals_instrument(submission, sample, chemical_service)
         ions_prep_text = _ions_prep_text(submission, sample, chemical_service)
         additional_elements_prep_text = customer.additional_elements_prep or None
+        metals_specs = _specs_for_sample(submission, sample, chemical_service, specification_service, customer.id)
         sections = chemical_water_report_builder.build_sections(
             sample, analysis_service, element_service, metals_prep_text, additional_elements_prep_text,
-            metals_instrument, ions_prep_text,
+            metals_instrument, ions_prep_text, metals_specs,
         )
         chemical_name = sample.form_chemical_name if submission.request_type == RequestType.CHEMICAL else "Water"
         sample_string = build_sample_string(
@@ -265,6 +272,31 @@ def _ions_prep_text(submission: TRSubmission, sample: TRSample, chemical_service
     if chemical is not None and chemical.ions_prep:
         return chemical.ions_prep
     return None
+
+
+def _specs_for_sample(
+    submission: TRSubmission,
+    sample: TRSample,
+    chemical_service: ChemicalService,
+    specification_service: SpecificationService,
+    customer_id: int,
+) -> dict[str, float]:
+    """Real per-(customer, chemical) spec thresholds for the metals panel,
+    from the real Specification data (slim-domain) -- {} (no specs
+    rendered) for Water (no Chemical record to key a lookup on) or when
+    the resolved customer+chemical genuinely has no spec on file, never
+    guessed. Unlike DM5 (a small fixed set of chemicals with specs
+    hardcoded as static data, dm5/element_specs.py), the generic path
+    serves the full real customer/chemical catalog -- far too many
+    combinations to hardcode, which is exactly why the real
+    Specifications_Database table exists.
+    """
+    if submission.request_type != RequestType.CHEMICAL:
+        return {}
+    chemical = chemical_service.load_chemical(sample.chemical_id)
+    if chemical is None:
+        return {}
+    return specification_service.get_specs(customer_id, chemical.id)
 
 
 # Confirmed real (every completed report checked with a rush/time-limited
