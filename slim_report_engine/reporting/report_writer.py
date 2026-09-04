@@ -64,6 +64,13 @@ _FONT_COLUMN_HEADER = Font(name="Arial", size=10)  # category label + Results/Re
 _FONT_HEADER_SPEC_LABEL = Font(name="AvantGarde", size=8, bold=True)  # DM5's header-row "Specification" text specifically
 _FONT_DATA = Font(name="Arial", size=10)  # analyte name/symbol
 _FONT_TITLE = Font(name="Arial", size=12, bold=True)  # DM5 title row
+# Confirmed real (Report Creator Template.xlsx row 5 -- legacy indexed
+# color 12, resolves to opaque blue; Wafers Report Template.xlsx row 4 --
+# already stored as this exact ARGB): the "Blue font indicates..." line
+# itself is rendered in blue in every real template.
+_BLUE = "FF0000FF"
+_FONT_NORMAL_BOLD_BLUE = Font(name="Arial", size=10, bold=True, color=_BLUE)  # generic preamble's own line
+_FONT_NORMAL_BLUE = Font(name="Arial", size=10, color=_BLUE)  # Wafer's equivalent line -- NOT bold
 
 _ALIGN_CENTER = Alignment(horizontal="center")
 _ALIGN_CENTER_WRAP = Alignment(horizontal="center", wrap_text=True)  # the sample-ID echo VALUE cell specifically -- confirmed real (D6 in the real template)
@@ -99,6 +106,23 @@ def apply_style(ws: Worksheet, row_index: int, min_col: int, max_col: int, style
         # "Notes:" and units-note rows specifically.
         for col in range(min_col, max_col + 1):
             ws.cell(row=row_index, column=col).font = Font(name="Arial", size=10, bold=True)
+        return
+
+    if style_name == "NormalBoldBlue":
+        # Same as "NormalBold", but blue -- confirmed real (Report Creator
+        # Template.xlsx row 5): the generic preamble's own "Blue font
+        # indicates..." line is itself rendered in blue, bold text.
+        for col in range(min_col, max_col + 1):
+            ws.cell(row=row_index, column=col).font = _FONT_NORMAL_BOLD_BLUE
+        return
+
+    if style_name == "NormalBlue":
+        # Same as "Normal", but blue, NOT bold -- confirmed real (Wafers
+        # Report Template.xlsx row 4): Wafer's own "Blue font indicates
+        # data at or below the MDL" line is blue but NOT bold, unlike the
+        # generic preamble's equivalent line.
+        for col in range(min_col, max_col + 1):
+            ws.cell(row=row_index, column=col).font = _FONT_NORMAL_BLUE
         return
 
     if style_name == "SampleIdEchoWide":
@@ -269,6 +293,14 @@ def write_row(ws: Worksheet, row: ReportRow, row_index: int) -> None:
         ws.merge_cells(
             start_row=row_index, start_column=start_col, end_row=row_index, end_column=end_col
         )
+
+
+def apply_zoom(ws: Worksheet, zoom: int) -> None:
+    """Confirmed real (openpyxl against every real template): the generic
+    Chemical/Water and DM5 templates are all zoomed to 90%; Wafer is the
+    one exception, at 95% -- see OutputSheet.zoom (submission_report_builder.py).
+    """
+    ws.sheet_view.zoomScale = zoom
 
 
 def apply_column_widths(ws: Worksheet, widths: dict[int, float]) -> None:

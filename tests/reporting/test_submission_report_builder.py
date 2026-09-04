@@ -31,6 +31,7 @@ class _FakeChemical:
     name: str
     metals_prep: str = ""
     metals_instrument: str = "ICPMS"
+    ions_prep: str = ""
 
 
 class _FakeChemicalService:
@@ -297,6 +298,16 @@ def test_dm5_sheet_uses_dm5_element_column_widths():
     assert sheets[0].column_widths == column_widths.DM5_ELEMENT
 
 
+def test_dm5_sheet_zoom_is_90():
+    samples = [_sample("S-001", chemical_id=9)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL, customer_id=2)
+    chemical_svc = _FakeChemicalService({9: _FakeChemical(id=9, name="NH4OH")})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _DM5N, chemical_svc, _FakeAnalysisService({}), _FakeElementService()
+    )
+    assert sheets[0].zoom == 90
+
+
 def test_wafer_sheet_uses_wafer_column_widths():
     samples = [_sample("Slot-1", analysis_ids=(1,), reporting_units="atoms/cm^2", form_chemical_name="150mm")]
     submission = _submission(samples, request_type=RequestType.WAFER)
@@ -305,6 +316,16 @@ def test_wafer_sheet_uses_wafer_column_widths():
         submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
     )
     assert sheets[0].column_widths == column_widths.WAFER
+
+
+def test_wafer_sheet_zoom_is_95():
+    samples = [_sample("Slot-1", analysis_ids=(1,), reporting_units="atoms/cm^2", form_chemical_name="150mm")]
+    submission = _submission(samples, request_type=RequestType.WAFER)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    assert sheets[0].zoom == 95
 
 
 def test_chemical_sample_uses_the_resolved_chemicals_catalog_prep():
@@ -376,6 +397,57 @@ def test_water_sample_always_uses_dilute_and_shoot_no_chemical_lookup():
         r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
     )
     assert footer.get_value(1) == "Analysis by ICPMS (Dilute and Shoot)"
+
+
+# ---------------------------------------------------------------------------
+# ions_prep_text (a SEPARATE catalog field from metals_prep -- see
+# _ions_prep_text's own docstring for the real correction this fixes)
+# ---------------------------------------------------------------------------
+
+def test_chemical_sample_with_no_ions_prep_on_file_gets_bare_ic_footer():
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "4 Anions"})
+    chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid", metals_prep="Evaporation")})
+    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
+    footer = next(r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by IC" in str(r.get_value(1)))
+    assert footer.get_value(1) == "Analysis by IC"
+
+
+def test_chemical_sample_uses_the_resolved_chemicals_catalog_ions_prep():
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "4 Anions"})
+    chemical_svc = _FakeChemicalService(
+        {1: _FakeChemical(id=1, name="Test Acid", metals_prep="Dilute and Shoot", ions_prep="Evaporation")}
+    )
+    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
+    footer = next(r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by IC" in str(r.get_value(1)))
+    assert footer.get_value(1) == "Analysis by IC (Evaporation)"
+
+
+def test_water_sample_always_gets_bare_ic_footer_no_chemical_lookup():
+    samples = [_sample("S-001", analysis_ids=(1,))]
+    submission = _submission(samples, request_type=RequestType.WATER)
+    analysis_svc = _FakeAnalysisService({1: "4 Anions"})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, _FakeChemicalService(), analysis_svc, _FakeElementService()
+    )
+    footer = next(r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by IC" in str(r.get_value(1)))
+    assert footer.get_value(1) == "Analysis by IC"
+
+
+# ---------------------------------------------------------------------------
+# zoom (confirmed real: 90% for generic Chemical/Water and DM5, 95% for Wafer)
+# ---------------------------------------------------------------------------
+
+def test_generic_chemical_sheet_zoom_is_90():
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid")})
+    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService())
+    assert sheets[0].zoom == 90
 
 
 def test_customer_additional_elements_prep_overrides_only_the_second_footer():

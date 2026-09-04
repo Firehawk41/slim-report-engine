@@ -72,6 +72,10 @@ class OutputSheet:
     # (cell_address, value) pairs to write AFTER the section content --
     # e.g. A1's title, DM5's sample-ID cell. Applied in order.
     extra_cell_stamps: tuple[tuple[str, str], ...] = ()
+    # Confirmed real (openpyxl against every real template): the generic
+    # Chemical/Water and DM5 templates are zoomed to 90% by default; Wafer
+    # is the one exception, at 95% (see _build_wafer_sheets).
+    zoom: int = 90
 
 
 def build_submission_sheets(
@@ -122,10 +126,11 @@ def build_submission_sheets(
 
         metals_prep_text = _metals_prep_text(submission, sample, chemical_service)
         metals_instrument = _metals_instrument(submission, sample, chemical_service)
+        ions_prep_text = _ions_prep_text(submission, sample, chemical_service)
         additional_elements_prep_text = customer.additional_elements_prep or None
         sections = chemical_water_report_builder.build_sections(
             sample, analysis_service, element_service, metals_prep_text, additional_elements_prep_text,
-            metals_instrument,
+            metals_instrument, ions_prep_text,
         )
         chemical_name = sample.form_chemical_name if submission.request_type == RequestType.CHEMICAL else "Water"
         sample_string = build_sample_string(
@@ -174,6 +179,7 @@ def _build_wafer_sheets(
                 header_title=result.sheet_title,
                 column_widths=column_widths.WAFER,
                 extra_cell_stamps=(("A1", result.sheet_title),),
+                zoom=95,
             )
         )
     return sheets
@@ -233,6 +239,25 @@ def _metals_instrument(submission: TRSubmission, sample: TRSample, chemical_serv
     if chemical is not None and chemical.metals_instrument:
         return chemical.metals_instrument
     return _DEFAULT_METALS_INSTRUMENT
+
+
+def _ions_prep_text(submission: TRSubmission, sample: TRSample, chemical_service: ChemicalService) -> str | None:
+    """Confirmed real (direct correction after this was initially built to
+    reuse _metals_prep_text -- one real chemical's ions_prep genuinely
+    happens to equal "Evaporation" too, which is what caused the original
+    over-generalization): the ion panel's own catalog field
+    (Chemical.ions_prep, slim-domain), NOT the same value as the metals
+    panel. None when the chemical has no ions_prep on file (or for Water,
+    which has no Chemical record at all) -- renders a bare "Analysis by
+    IC" rather than guessing a prep. Chemical.ions_prep defaults to ""
+    (blank) when nothing's been set, same convention as metals_prep.
+    """
+    if submission.request_type != RequestType.CHEMICAL:
+        return None
+    chemical = chemical_service.load_chemical(sample.chemical_id)
+    if chemical is not None and chemical.ions_prep:
+        return chemical.ions_prep
+    return None
 
 
 _SHEET_NAME_ILLEGAL_CHARS = ":/\\?*[]<>|"

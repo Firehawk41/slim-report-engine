@@ -122,7 +122,9 @@ def _add_common_header_rows(
     notes_label_row.set_value(1, "Notes:")
     section.add_row(notes_label_row)
 
-    mdl_note_row = ReportRow(style_name="Normal", max_columns=MAX_SAMPLE_COLUMNS)
+    # Confirmed real (Wafers Report Template.xlsx row 4): blue, but NOT
+    # bold -- unlike the generic preamble's equivalent line.
+    mdl_note_row = ReportRow(style_name="NormalBlue", max_columns=MAX_SAMPLE_COLUMNS)
     mdl_note_row.set_value(1, "Blue font indicates data at or below the MDL")
     section.add_row(mdl_note_row)
 

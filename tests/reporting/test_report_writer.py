@@ -168,9 +168,47 @@ def test_normal_bold_style_no_border_no_fill_but_bold():
     assert cell.fill.patternType is None
 
 
+def test_normal_bold_blue_style_bold_and_blue():
+    """Confirmed real (Report Creator Template.xlsx row 5): the generic
+    preamble's own "Blue font indicates..." line."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    report_writer.apply_style(ws, row_index=3, min_col=1, max_col=1, style_name="NormalBoldBlue")
+    cell = ws.cell(row=3, column=1)
+    assert cell.font.bold is True
+    assert cell.font.color.rgb == "FF0000FF"
+    assert cell.border.left.style is None
+    assert cell.fill.patternType is None
+
+
+def test_normal_blue_style_blue_not_bold():
+    """Confirmed real (Wafers Report Template.xlsx row 4): Wafer's own
+    equivalent line is blue but NOT bold, unlike the generic preamble's."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    report_writer.apply_style(ws, row_index=3, min_col=1, max_col=1, style_name="NormalBlue")
+    cell = ws.cell(row=3, column=1)
+    assert cell.font.bold is not True
+    assert cell.font.color.rgb == "FF0000FF"
+
+
 def test_unknown_style_raises(ws):
     with pytest.raises(ValueError, match="unknown style name"):
         report_writer.apply_style(ws, row_index=1, min_col=1, max_col=1, style_name="Nonexistent")
+
+
+# ---------------------------------------------------------------------------
+# apply_zoom
+# ---------------------------------------------------------------------------
+
+def test_apply_zoom_sets_zoom_scale(ws):
+    report_writer.apply_zoom(ws, 90)
+    assert ws.sheet_view.zoomScale == 90
+
+
+def test_apply_zoom_wafer_value(ws):
+    report_writer.apply_zoom(ws, 95)
+    assert ws.sheet_view.zoomScale == 95
 
 
 # ---------------------------------------------------------------------------

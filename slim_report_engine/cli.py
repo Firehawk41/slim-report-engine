@@ -96,6 +96,7 @@ def run(input_path: Path, output_path: Path, db_url: str | None = None) -> Path:
     form_sheet_name = _find_form_sheet_name(wb)
     for sheet in sheets:
         ws = wb.create_sheet(sheet.name)
+        report_writer.apply_zoom(ws, sheet.zoom)
         report_writer.apply_column_widths(ws, sheet.column_widths)
         report_writer.write_sections(ws, list(sheet.sections), start_row=1)
         report_writer.apply_header_footer(

@@ -40,6 +40,18 @@ read a prep from at all, and physically it's a different method
 caller (submission_report_builder.py) computes this and passes it in as
 metals_prep_text; this module has no DB dependency of its own.
 
+ION PANEL PREP TEXT is a SEPARATE catalog field, not the same as the
+metals panel's — a real, direct correction after this was initially
+(incorrectly) built to reuse metals_prep_text: Chemical.ions_prep
+(slim-domain) already existed as its own field but was never actually
+read anywhere. Confirmed real (cross-checked against a completed report):
+one specific real chemical's ions_prep genuinely happens to equal
+"Evaporation" too (hence the original, too-hasty generalization), but
+every other real chemical's ion panel footer has NO parenthesized prep
+at all — just a bare "Analysis by IC". ions_prep_text is None by default
+(bare form); the caller only passes a value when the resolved Chemical
+has one on file.
+
 ADDITIONAL ELEMENTS — confirmed real (several real Chemical and Water
 customers' reports): the free-text "Additional Elements (specify)"
 request was previously silently dropped entirely by this module. Now
@@ -133,6 +145,7 @@ def build_sections(
     metals_prep_text: str = "Evaporation",
     additional_elements_prep_text: str | None = None,
     metals_instrument: str = "ICPMS",
+    ions_prep_text: str | None = None,
 ) -> list[ReportSection]:
     """Returns one (or more, for Silicon's calculated Colloidal Silica row,
     or the additional-elements block) ReportSection per resolved analysis
@@ -159,6 +172,17 @@ def build_sections(
     Applied identically to the main panel AND any additional-elements
     block -- unlike prep_text, it's a property of the sample's physical
     matrix, not something that varies per block.
+
+    ions_prep_text: the ion panels' own footer method text -- see module
+    docstring's PREP TEXT section. NOT the same as metals_prep_text: this
+    was previously (incorrectly) reused from the metals panel, but
+    Chemical.ions_prep (slim-domain) is its own separate catalog field --
+    confirmed real (direct user correction against a real completed
+    report): only the one real chemical whose real ions_prep happens to
+    also be "Evaporation" should show a parenthesized prep at all; every
+    other real ion panel checked has NO parenthesized prep, just a bare
+    "Analysis by IC". None (the default, when the resolved chemical has no
+    ions_prep on file) renders the bare form -- never guessed.
     """
     names = _resolved_names_in_order(sample, analysis_service)
     names_set = set(names)
@@ -206,28 +230,28 @@ def build_sections(
             )
             sections.append(metals_panel_section)
         elif name == "4 Anions":
-            sections.append(_ion_panel(name, "Anion", ion_presets.anions_4(), metals_prep_text))
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_4(), ions_prep_text))
         elif name == "5 Anions":
-            sections.append(_ion_panel(name, "Anion", ion_presets.anions_5(), metals_prep_text))
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_5(), ions_prep_text))
         elif name == "5 Anions + MS Authentication":
             # Confirmed real: identical panel content to plain "5 Anions"
             # -- see module docstring's "5 ANIONS + MS AUTHENTICATION"
             # section for why the appendix isn't reproduced here.
-            sections.append(_ion_panel(name, "Anion", ion_presets.anions_5(), metals_prep_text))
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_5(), ions_prep_text))
         elif name == "7 Anions":
-            sections.append(_ion_panel(name, "Anion", ion_presets.anions_7(), metals_prep_text))
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_7(), ions_prep_text))
         elif name == "Anions":
-            sections.append(_ion_panel(name, "Anion", ion_presets.anions_master(), metals_prep_text))
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_master(), ions_prep_text))
         elif name == "6 Cations":
-            sections.append(_ion_panel(name, "Cation", ion_presets.cations_6(), metals_prep_text))
+            sections.append(_ion_panel(name, "Cation", ion_presets.cations_6(), ions_prep_text))
         elif name == "NH4":
-            sections.append(_ion_panel(name, "Cation", ion_presets.cations_nh4(), metals_prep_text))
+            sections.append(_ion_panel(name, "Cation", ion_presets.cations_nh4(), ions_prep_text))
         elif name == "Methylamines":
-            sections.append(_ion_panel(name, "Cation", ion_presets.cations_methylamines(), metals_prep_text))
+            sections.append(_ion_panel(name, "Cation", ion_presets.cations_methylamines(), ions_prep_text))
         elif name == "Cations":
-            sections.append(_ion_panel(name, "Cation", ion_presets.cations_master(), metals_prep_text))
+            sections.append(_ion_panel(name, "Cation", ion_presets.cations_master(), ions_prep_text))
         elif name == "GBP":
-            sections.append(_ion_panel(name, "Analyte", ion_presets.gbp_group(), metals_prep_text))
+            sections.append(_ion_panel(name, "Analyte", ion_presets.gbp_group(), ions_prep_text))
         elif name in ("Total Silicon", "Dissolved Silicon", "Dissolved and Total Si"):
             # Total/Dissolved Silicon share ONE build_silicon call (it
             # decides internally whether to add the Colloidal Silica row)
@@ -300,12 +324,14 @@ def build_sections(
     return sections
 
 
-def _ion_panel(name: str, category_label: str, analytes, prep_text: str) -> ReportSection:
-    # Confirmed real (a real Chemical customer's 4-Anions report):
-    # "Analysis by IC (<prep>)", not a bare "Analysis by IC" -- the same
-    # prep text the sample's metals panel would use.
+def _ion_panel(name: str, category_label: str, analytes, prep_text: str | None) -> ReportSection:
+    # Confirmed real: "Analysis by IC (<prep>)" ONLY for a chemical with
+    # its own real Chemical.ions_prep on file (one real confirmed
+    # instance); every other real ion panel checked is a bare
+    # "Analysis by IC" -- see module docstring's ION PANEL PREP TEXT note.
+    footer_text = f"Analysis by IC ({prep_text})" if prep_text else "Analysis by IC"
     return ion_list_section_builder.build_ion_panel(
-        name, category_label, analytes, f"Analysis by IC ({prep_text})",
+        name, category_label, analytes, footer_text,
         sop_codes=sop_codes.ION_PANEL_SOP_CODES.get(name),
     )
 

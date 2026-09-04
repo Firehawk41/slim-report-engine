@@ -52,7 +52,10 @@ def build_header_preamble(title: str) -> ReportSection:
     units_row.set_value(1, "All data in units of ppb unless otherwise noted")
     section.add_row(units_row)
 
-    blue_font_row = ReportRow(style_name="NormalBold")
+    # Confirmed real (Report Creator Template.xlsx row 5): this line is
+    # itself rendered in blue, bold text -- not the plain black "NormalBold"
+    # every other preamble line uses.
+    blue_font_row = ReportRow(style_name="NormalBoldBlue")
     blue_font_row.set_value(1, "Blue font indicates data at or below detection limits")
     section.add_row(blue_font_row)
 

@@ -138,12 +138,24 @@ def test_4_anions_panel_has_4_rows_labeled_anion():
     assert len(data_rows) == 4
 
 
-def test_ion_panel_footer_includes_prep_text():
-    """Confirmed real (a real Chemical customer's 4-Anions report):
-    "Analysis by IC (<prep>)", not a bare "Analysis by IC" -- the same
-    prep text the sample's metals panel would use."""
+def test_ion_panel_footer_bare_by_default_no_ions_prep_given():
+    """Confirmed real (direct correction): most real ion panels have NO
+    parenthesized prep at all -- only a chemical with its own real
+    Chemical.ions_prep on file gets one (see ions_prep_text)."""
     svc = _FakeAnalysisService({1: "4 Anions"})
     sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService(), metals_prep_text="Evaporation")
+    footer = next(r for r in sections[0].rows if r.get_value(1) and "Analysis by IC" in str(r.get_value(1)))
+    assert footer.get_value(1) == "Analysis by IC"
+
+
+def test_ion_panel_footer_includes_own_ions_prep_text_when_given():
+    """Confirmed real (one real Chemical customer's 4-Anions report):
+    "Analysis by IC (<prep>)" -- ions_prep_text is a SEPARATE catalog
+    field from the metals panel's own prep, not reused from it."""
+    svc = _FakeAnalysisService({1: "4 Anions"})
+    sections = orchestrator.build_sections(
+        _sample((1,)), svc, _FakeElementService(), metals_prep_text="Dilute and Shoot", ions_prep_text="Evaporation"
+    )
     footer = next(r for r in sections[0].rows if r.get_value(1) and "Analysis by IC" in str(r.get_value(1)))
     assert footer.get_value(1) == "Analysis by IC (Evaporation)"
 
