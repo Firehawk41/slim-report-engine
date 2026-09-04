@@ -15,6 +15,22 @@ Attribute VB_Name = "modReportEngineHook"
 '   slim_report_engine/cli.py's own docstring for the canonical
 '   definition.
 '
+' WHY .Run, NOT .Exec
+'   WScript.Shell.Exec always shows the child process's console window
+'   (there is no way to hide it -- a documented WSH limitation), and it
+'   only works at all against a console application. .Run's windowStyle
+'   argument hides the window from the moment Windows creates the
+'   process, so nothing is ever drawn -- zero flicker, not just a very
+'   short one. The tradeoff: .Run gives no StdOut/StdErr pipes and no
+'   process handle to poll or terminate, so this module gets the exit
+'   code/message from --result-file instead, and (using .Run's
+'   non-blocking form, not bWaitOnReturn:=True) polls for that file with
+'   the SAME DoEvents/timeout loop shape .Exec used to use -- Excel
+'   stays responsive and a hang is still detected within
+'   TIMEOUT_SECONDS, it just can't be force-killed anymore (no handle to
+'   kill). That's an acceptable tradeoff for a process that in practice
+'   takes low single-digit seconds.
+'
 ' SETUP
 '   1. Set EXE_PATH below to the real network-share path where
 '      slim-report-engine.exe lives. Every lab machine's copy of this
@@ -31,12 +47,12 @@ Attribute VB_Name = "modReportEngineHook"
 '      GenerateReport) or a Quick Access Toolbar button -- either way,
 '      click it with the TR form as the active window.
 '
-' EXIT-CODE CONTRACT
-'   0 -- success; stdout has the generated output file's path
+' EXIT-CODE CONTRACT (read from --result-file, first line)
+'   0 -- success; the rest of the file is the generated output file's path
 '   1 -- a recognized, actionable data problem (e.g. an unresolved
-'        customer/chemical); stderr is safe to show the technician
+'        customer/chemical); the message is safe to show the technician
 '        directly
-'   2 -- an unexpected error (a real bug); stderr has a traceback --
+'   2 -- an unexpected error (a real bug); the message is a traceback --
 '        not meant for a technician to action, shown anyway so it can
 '        be copied into a bug report
 '=======================================================================
@@ -61,8 +77,7 @@ Public Sub GenerateReport()
     Dim targetWorkbook As Workbook
     Dim inputPath As String
     Dim exitCode As Long
-    Dim stdOut As String
-    Dim stdErr As String
+    Dim resultText As String
 
     Set targetWorkbook = ActiveWorkbook
     If targetWorkbook Is Nothing Then
@@ -75,7 +90,7 @@ Public Sub GenerateReport()
     End If
     inputPath = targetWorkbook.FullName
 
-    If Not RunReportEngine(inputPath, exitCode, stdOut, stdErr) Then
+    If Not RunReportEngine(inputPath, exitCode, resultText) Then
         MsgBox "Could not start the report engine." & vbCrLf & _
                "Checked path: " & EXE_PATH & vbCrLf & _
                "Is the network share reachable?", vbCritical, "Report Generation Failed"
@@ -85,13 +100,15 @@ Public Sub GenerateReport()
     Select Case exitCode
         Case 0
             Dim outputPath As String
-            outputPath = Trim$(stdOut)
+            outputPath = Trim$(resultText)
             MsgBox "Report written to:" & vbCrLf & outputPath, vbInformation, "Report Generated"
             OpenOutputFile outputPath
         Case 1
-            MsgBox stdErr, vbExclamation, "Report Generation Failed"
+            MsgBox resultText, vbExclamation, "Report Generation Failed"
+        Case -1
+            MsgBox resultText, vbExclamation, "Report Generation Failed"
         Case Else
-            MsgBox "Unexpected error -- contact support with the details below:" & vbCrLf & vbCrLf & stdErr, _
+            MsgBox "Unexpected error -- contact support with the details below:" & vbCrLf & vbCrLf & resultText, _
                    vbCritical, "Report Generation Failed"
     End Select
 
@@ -126,58 +143,92 @@ Private Function EnsureSaved(ByVal wb As Workbook) As Boolean
 End Function
 
 
-' Runs the exe and blocks until it exits or TIMEOUT_SECONDS elapses.
-' Returns True if the process actually ran (regardless of ITS OWN exit
-' code -- that's read back via the ByRef exitCode/stdOut/stdErr
-' parameters). Returns False only when the process could not be
-' launched at all (e.g. EXE_PATH isn't reachable).
+' Runs the exe HIDDEN (no console window, ever) and blocks until its
+' --result-file appears or TIMEOUT_SECONDS elapses. Returns True if the
+' process actually launched (regardless of ITS OWN exit code -- that's
+' read back via the ByRef exitCode/resultText parameters, sourced from
+' the result file since a hidden launch has no stdout/stderr to read).
+' Returns False only when the process could not be launched at all
+' (e.g. EXE_PATH isn't reachable).
 Private Function RunReportEngine( _
     ByVal inputPath As String, _
     ByRef exitCode As Long, _
-    ByRef stdOut As String, _
-    ByRef stdErr As String _
+    ByRef resultText As String _
 ) As Boolean
 
     Dim shellObj As Object
-    Dim execObj As Object
+    Dim fso As Object
     Dim cmd As String
+    Dim resultFile As String
     Dim startTime As Single
+    Dim rawContent As String
+    Dim splitPos As Long
 
     On Error GoTo LaunchFailed
 
     ' Late-bound (no Tools > References entry needed) -- same pattern
     ' as the WinHttp prototype this was adapted from.
     Set shellObj = CreateObject("WScript.Shell")
-    cmd = """" & EXE_PATH & """ """ & inputPath & """"
-    Set execObj = shellObj.Exec(cmd)
+    Set fso = CreateObject("Scripting.FileSystemObject")
 
-    ' Timer (seconds since midnight) rather than a Sleep-based counter,
-    ' so no Windows API Declare (and its 32-/64-bit Office split) is
-    ' needed. Wraps to 0 at midnight -- irrelevant here since
-    ' TIMEOUT_SECONDS is a small fraction of a day and this only ever
-    ' under-waits by a fraction of a second in the one-in-86400 case a
-    ' run starts in the last minute before midnight.
+    resultFile = fso.GetSpecialFolder(2).Path & "\" & fso.GetTempName()  ' 2 = TemporaryFolder
+    cmd = """" & EXE_PATH & """ """ & inputPath & """ --result-file """ & resultFile & """"
+
+    ' windowStyle:=0 (SW_HIDE) hides the process's window from the
+    ' instant Windows creates it. waitOnReturn:=False returns
+    ' immediately -- THIS loop (not Run itself) owns the
+    ' timeout/DoEvents responsiveness, so Excel never freezes even
+    ' though .Run itself gives back no process handle to poll.
+    shellObj.Run cmd, 0, False
+
     startTime = Timer
-    Do While execObj.Status = 0  ' WshRunning
+    Do While Not fso.FileExists(resultFile)
         DoEvents
         If Timer - startTime > TIMEOUT_SECONDS Then
-            execObj.Terminate
             exitCode = -1
-            stdErr = "Timed out after " & TIMEOUT_SECONDS & " seconds -- the process was terminated."
+            resultText = "Timed out after " & TIMEOUT_SECONDS & " seconds. The process may still be " & _
+                         "running in the background (slim-report-engine.exe) -- check Task Manager " & _
+                         "if this keeps happening."
             RunReportEngine = True
             Exit Function
         End If
     Loop
 
-    exitCode = execObj.ExitCode
-    stdOut = execObj.StdOut.ReadAll()
-    stdErr = execObj.StdErr.ReadAll()
+    ' cli.py writes "<exit code>\n<message>" atomically (temp file +
+    ' rename) as its LAST action, so FileExists above never observes a
+    ' partially-written file.
+    rawContent = ReadTextFile(resultFile)
+    splitPos = InStr(rawContent, vbLf)
+    If splitPos > 0 Then
+        exitCode = CLng(Left$(rawContent, splitPos - 1))
+        resultText = Mid$(rawContent, splitPos + 1)
+    Else
+        exitCode = CLng(rawContent)
+        resultText = ""
+    End If
+
+    On Error Resume Next
+    fso.DeleteFile resultFile, True
+    On Error GoTo 0
+
     RunReportEngine = True
     Exit Function
 
 LaunchFailed:
     RunReportEngine = False
 
+End Function
+
+
+' Reads a whole text file as a single string. Scripting.FileSystemObject
+' has no ReadAll-to-string shortcut of its own outside a TextStream.
+Private Function ReadTextFile(ByVal path As String) As String
+    Dim fso As Object
+    Dim stream As Object
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set stream = fso.OpenTextFile(path, 1)  ' 1 = ForReading
+    ReadTextFile = stream.ReadAll()
+    stream.Close
 End Function
 
 

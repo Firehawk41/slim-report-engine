@@ -145,3 +145,36 @@ def test_cli_missing_input_file_exits_one(tmp_path, capsys):
     assert exit_code == 1
     out, err = capsys.readouterr()
     assert "not found" in err
+
+
+def test_cli_result_file_written_on_success(tmp_path):
+    db_path = tmp_path / "test.db"
+    db_url = f"sqlite:///{db_path}"
+    _seed(db_url)
+
+    input_path = tmp_path / "input.xlsx"
+    _make_input_workbook(input_path)
+    output_path = tmp_path / "output.xlsx"
+    result_file = tmp_path / "result.txt"
+
+    if not _FORM_PATH.exists():
+        pytest.skip("real Chemical intake form not available in this environment")
+
+    exit_code = main(["--db", db_url, str(input_path), "-o", str(output_path), "--result-file", str(result_file)])
+
+    assert exit_code == 0
+    code_line, message = result_file.read_text(encoding="utf-8").split("\n", 1)
+    assert code_line == "0"
+    assert message == str(output_path)
+
+
+def test_cli_result_file_written_on_failure_no_tmp_file_left_behind(tmp_path):
+    result_file = tmp_path / "result.txt"
+
+    exit_code = main([str(tmp_path / "does_not_exist.xlsx"), "--result-file", str(result_file)])
+
+    assert exit_code == 1
+    code_line, message = result_file.read_text(encoding="utf-8").split("\n", 1)
+    assert code_line == "1"
+    assert "not found" in message
+    assert not result_file.with_name(result_file.name + ".tmp").exists()

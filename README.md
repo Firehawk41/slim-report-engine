@@ -61,47 +61,64 @@ Python isn't.
 
 The lab-technician-facing trigger stays a familiar Excel button — VBA
 just shells out to this tool and reacts to the result, rather than
-owning any content or formatting logic itself. The contract is process
-exit code plus stderr text, nothing more:
+owning any content or formatting logic itself. The exe is launched
+HIDDEN (`WScript.Shell.Run` with a hidden window style, not `.Exec`) so
+no console window is ever shown to the technician — `.Exec` always
+shows the child process's console window with no way to hide it, a
+documented WSH limitation, so a truly invisible launch means giving up
+its stdout/stderr pipes. The contract is process exit code plus a
+message, both read from a `--result-file` instead:
 
-| Exit code | Meaning | stderr |
+| Exit code | Meaning | Message |
 |---|---|---|
-| `0` | Success | (empty); stdout has the output file path |
-| `1` | A recognized, actionable data problem (unresolved customer/chemical, unsupported analysis/DM5 chemical, empty submission, missing input file) | A message safe to show the technician directly, e.g. via `MsgBox` |
+| `0` | Success | The output file path |
+| `1` | A recognized, actionable data problem (unresolved customer/chemical, unsupported analysis/DM5 chemical, empty submission, missing input file) | Safe to show the technician directly, e.g. via `MsgBox` |
 | `2` | An unexpected error (a real bug) | A full traceback — not meant for a technician to action, worth logging/reporting instead |
 
-Use `WScript.Shell.Exec` (not `.Run`) so both the exit code and the
-stdout/stderr text are readable from VBA. The real, importable module is
+The real, importable module is
 [`vba/modReportEngineHook.bas`](vba/modReportEngineHook.bas) — late-bound
 `CreateObject` calls only (no `Tools > References` entry needed), plus
 the robustness a real production hook needs beyond the bare minimum:
 saves the workbook first (the engine reads from disk, so an unsaved edit
-would otherwise silently generate a report from stale data), a timeout
-so a hung process can't hang Excel forever, and opens the generated
+would otherwise silently generate a report from stale data), a
+DoEvents/timeout loop so a hung process can't hang Excel forever (it
+polls for the result file rather than blocking on `.Run`'s own
+`bWaitOnReturn`, since a non-blocking launch is what makes the loop —
+and therefore the timeout — possible at all), and opens the generated
 report automatically on success. A trimmed version of the core call:
 
 ```vb
 Set shellObj = CreateObject("WScript.Shell")
-Set execObj = shellObj.Exec("""" & EXE_PATH & """ """ & inputPath & """")
+Set fso = CreateObject("Scripting.FileSystemObject")
+resultFile = fso.GetSpecialFolder(2).Path & "\" & fso.GetTempName()
 
-Do While execObj.Status = 0  ' WshRunning
+' windowStyle:=0 hides the window from creation -- no flicker, ever.
+' bWaitOnReturn:=False so THIS loop, not Run, owns the timeout.
+shellObj.Run """" & EXE_PATH & """ """ & inputPath & """ --result-file """ & resultFile & """", 0, False
+
+Do While Not fso.FileExists(resultFile)
     DoEvents
 Loop
 
-Select Case execObj.ExitCode
+rawContent = ReadTextFile(resultFile)  ' "<exit code>\n<message>"
+splitPos = InStr(rawContent, vbLf)
+exitCode = CLng(Left$(rawContent, splitPos - 1))
+message = Mid$(rawContent, splitPos + 1)
+
+Select Case exitCode
     Case 0
-        MsgBox "Report written to: " & Trim(execObj.StdOut.ReadAll()), vbInformation
+        MsgBox "Report written to: " & Trim(message), vbInformation
     Case 1
-        MsgBox execObj.StdErr.ReadAll(), vbExclamation, "Report Generation Failed"
+        MsgBox message, vbExclamation, "Report Generation Failed"
     Case Else
-        MsgBox "Unexpected error -- contact support:" & vbCrLf & execObj.StdErr.ReadAll(), vbCritical
+        MsgBox "Unexpected error -- contact support:" & vbCrLf & message, vbCritical
 End Select
 ```
 
 `slim_report_engine/cli.py` is the entry point (`slim-report-engine
-<input.xlsx> [-o output.xlsx] [--db DB_URL]`, installed as a console
-script — see Setup below). See its module docstring for the exact exit
-code semantics.
+<input.xlsx> [-o output.xlsx] [--db DB_URL] [--result-file PATH]`,
+installed as a console script — see Setup below). See its module
+docstring for the exact exit code semantics.
 
 ## Rollout plan
 

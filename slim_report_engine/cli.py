@@ -5,19 +5,23 @@ Designed to be invoked from a thin VBA trigger (per the project's
 deployment decision — a familiar Excel button stays the UX for lab
 technicians, but VBA no longer owns any content/formatting logic, just
 the invocation). Reports success or failure via process exit code plus
-an error message on stderr — the simplest contract a VBA
-`WScript.Shell.Run(..., bWaitOnReturn:=True)` call can consume with no
-custom protocol. See README.md's "Invocation from VBA" section for the
-calling convention and an example VBA snippet.
+a message -- printed to stdout/stderr for a normal console invocation,
+AND written to --result-file when given, since the real VBA hook
+launches this hidden (WScript.Shell.Run with a hidden window style, not
+.Exec) specifically so no console window is ever shown to the
+technician -- a hidden launch has no stdout/stderr pipes to read, so
+--result-file is the only channel VBA actually has. See README.md's
+"Invocation from VBA" section for the calling convention.
 
 EXIT CODES:
-  0  success -- output workbook written, its path printed to stdout
+  0  success -- output workbook written, its path is the message
   1  a recognized, actionable error (unresolved customer/chemical,
      unsupported analysis/DM5 chemical, empty submission, bad input
-     file) -- the stderr message is meant to be shown to the
-     technician directly, e.g. via MsgBox
-  2  an unexpected error (a real bug, not a data problem) -- full
-     traceback on stderr, not meant for a technician to action
+     file) -- the message is meant to be shown to the technician
+     directly, e.g. via MsgBox
+  2  an unexpected error (a real bug, not a data problem) -- the
+     message is a full traceback, not meant for a technician to
+     action
 """
 
 from __future__ import annotations
@@ -149,25 +153,44 @@ def main(argv: list[str] | None = None) -> int:
         "--db", type=str, default=None,
         help="DB_URL override (default: .env's DB_URL, or sqlite:///report_engine.db)",
     )
+    parser.add_argument(
+        "--result-file", type=Path, default=None,
+        help="write '<exit code>\\n<message>' here -- the only channel a hidden "
+             "(no console window) launch has, since it has no stdout/stderr to read",
+    )
     args = parser.parse_args(argv)
 
     if not args.input.exists():
-        print(f"input file not found: {args.input}", file=sys.stderr)
-        return 1
+        return _finish(1, f"input file not found: {args.input}", args.result_file)
 
     output_path = args.output or args.input.with_name(args.input.stem + "_report.xlsx")
 
     try:
         result_path = run(args.input, output_path, args.db)
     except ReportEngineError as e:
-        print(str(e), file=sys.stderr)
-        return 1
+        return _finish(1, str(e), args.result_file)
     except Exception:
-        traceback.print_exc()
-        return 2
+        return _finish(2, traceback.format_exc(), args.result_file)
 
-    print(str(result_path))
-    return 0
+    return _finish(0, str(result_path), args.result_file)
+
+
+def _finish(code: int, message: str, result_file: Path | None) -> int:
+    """Reports (code, message) on stdout/stderr (guarded: a --windowed-style
+    frozen build with no console attached has sys.stdout/sys.stderr as None,
+    though the real deployed build keeps a console -- just a hidden one) and,
+    if given, writes it to result_file for the hidden-launch VBA hook to read.
+    Written via a same-directory temp file + os.replace (atomic on Windows)
+    so a concurrent reader never observes a partially-written file.
+    """
+    stream = sys.stdout if code == 0 else sys.stderr
+    if stream is not None:
+        print(message, file=stream)
+    if result_file is not None:
+        tmp = result_file.with_name(result_file.name + ".tmp")
+        tmp.write_text(f"{code}\n{message}", encoding="utf-8")
+        tmp.replace(result_file)
+    return code
 
 
 if __name__ == "__main__":
