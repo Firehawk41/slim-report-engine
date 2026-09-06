@@ -161,6 +161,7 @@ def build_sections(
     ions_prep_text: str | None = None,
     metals_specs: dict[str, float] | None = None,
     has_ked_elements: bool = False,
+    date_of_analysis: str | None = None,
 ) -> list[ReportSection]:
     """Returns one (or more, for Silicon's calculated Colloidal Silica row,
     or the additional-elements block) ReportSection per resolved analysis
@@ -212,6 +213,12 @@ def build_sections(
     straight through to the metals panel (see
     analyte_list_section_builder.build_metals_panel); irrelevant to every
     other section built here.
+
+    date_of_analysis: pre-formatted "MM-DD-YY" text (see
+    submission_report_builder._date_of_analysis_text / date_of_analysis.py)
+    -- passed straight through to every section built here that has a
+    "Date of Analysis: " footer placeholder (everything except DM5, which
+    doesn't use row_builders.add_footer_row at all).
     """
     names = _resolved_names_in_order(sample, analysis_service)
     names_set = set(names)
@@ -238,97 +245,105 @@ def build_sections(
             metals_panel_section = analyte_list_section_builder.build_metals_panel(
                 name, analyte_presets.trace_elements_36(), summary_label, element_service, metals_prep_text,
                 instrument=metals_instrument, specs=metals_specs, has_ked_elements=has_ked_elements,
+                date_of_analysis=date_of_analysis,
             )
             sections.append(metals_panel_section)
         elif name == "67 Elements":
             metals_panel_section = analyte_list_section_builder.build_metals_panel(
                 name, analyte_presets.trace_elements_67(), "67 Tr.Elts", element_service, metals_prep_text,
                 instrument=metals_instrument, specs=metals_specs, has_ked_elements=has_ked_elements,
+                date_of_analysis=date_of_analysis,
             )
             sections.append(metals_panel_section)
         elif name == "USP Elements":
             metals_panel_section = analyte_list_section_builder.build_metals_panel(
                 name, analyte_presets.trace_elements_usp(), "USP Tr.Elts", element_service, metals_prep_text,
                 instrument=metals_instrument, specs=metals_specs, has_ked_elements=has_ked_elements,
+                date_of_analysis=date_of_analysis,
             )
             sections.append(metals_panel_section)
         elif name == "List #2 36 Elements":
             metals_panel_section = analyte_list_section_builder.build_metals_panel(
                 name, analyte_presets.trace_elements_36_list2(), "36 Tr.Elts", element_service, metals_prep_text,
                 instrument=metals_instrument, specs=metals_specs, has_ked_elements=has_ked_elements,
+                date_of_analysis=date_of_analysis,
             )
             sections.append(metals_panel_section)
         elif name == "4 Anions":
-            sections.append(_ion_panel(name, "Anion", ion_presets.anions_4(), ions_prep_text))
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_4(), ions_prep_text, date_of_analysis))
         elif name == "5 Anions":
-            sections.append(_ion_panel(name, "Anion", ion_presets.anions_5(), ions_prep_text))
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_5(), ions_prep_text, date_of_analysis))
         elif name == "5 Anions + MS Confirmation":
             # Confirmed real: identical panel content to plain "5 Anions"
             # -- see module docstring's "5 ANIONS + MS CONFIRMATION"
             # section for why the appendix isn't reproduced here.
-            sections.append(_ion_panel(name, "Anion", ion_presets.anions_5(), ions_prep_text))
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_5(), ions_prep_text, date_of_analysis))
         elif name == "7 Anions":
-            sections.append(_ion_panel(name, "Anion", ion_presets.anions_7(), ions_prep_text))
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_7(), ions_prep_text, date_of_analysis))
         elif name == "Anions":
-            sections.append(_ion_panel(name, "Anion", ion_presets.anions_master(), ions_prep_text))
+            sections.append(_ion_panel(name, "Anion", ion_presets.anions_master(), ions_prep_text, date_of_analysis))
         elif name == "6 Cations":
-            sections.append(_ion_panel(name, "Cation", ion_presets.cations_6(), ions_prep_text))
+            sections.append(_ion_panel(name, "Cation", ion_presets.cations_6(), ions_prep_text, date_of_analysis))
         elif name == "NH4":
-            sections.append(_ion_panel(name, "Cation", ion_presets.cations_nh4(), ions_prep_text))
+            sections.append(_ion_panel(name, "Cation", ion_presets.cations_nh4(), ions_prep_text, date_of_analysis))
         elif name == "Methylamines":
-            sections.append(_ion_panel(name, "Cation", ion_presets.cations_methylamines(), ions_prep_text))
+            sections.append(
+                _ion_panel(name, "Cation", ion_presets.cations_methylamines(), ions_prep_text, date_of_analysis)
+            )
         elif name == "Cations":
-            sections.append(_ion_panel(name, "Cation", ion_presets.cations_master(), ions_prep_text))
+            sections.append(_ion_panel(name, "Cation", ion_presets.cations_master(), ions_prep_text, date_of_analysis))
         elif name == "GBP":
-            sections.append(_ion_panel(name, "Analyte", ion_presets.gbp_group(), ions_prep_text))
+            sections.append(_ion_panel(name, "Analyte", ion_presets.gbp_group(), ions_prep_text, date_of_analysis))
         elif name in ("Total Silicon", "Dissolved Silicon", "Dissolved and Total Si"):
             # Total/Dissolved Silicon share ONE build_silicon call (it
             # decides internally whether to add the Colloidal Silica row)
             # -- guard against calling it twice when a sample requests both.
             if not silicon_added:
                 sections.append(
-                    silicon_section_builder.build_silicon("Silicon", include_total_si, include_dissolved_si)
+                    silicon_section_builder.build_silicon(
+                        "Silicon", include_total_si, include_dissolved_si, date_of_analysis
+                    )
                 )
                 silicon_added = True
         elif name == "TOC":
-            sections.append(simple_test_section_builder.build_toc(name))
+            sections.append(simple_test_section_builder.build_toc(name, date_of_analysis))
         elif name == "Alkalinity":
-            sections.append(simple_test_section_builder.build_alkalinity(name))
+            sections.append(simple_test_section_builder.build_alkalinity(name, date_of_analysis))
         elif name == "Bacteria Count":
-            sections.append(simple_test_section_builder.build_bacteria(name))
+            sections.append(simple_test_section_builder.build_bacteria(name, date_of_analysis))
         elif name == "Conductivity":
             if "pH" in names_set:
                 if not conductivity_and_ph_handled:
-                    sections.append(electrical_section_builder.build_conductivity_and_ph(name))
+                    sections.append(electrical_section_builder.build_conductivity_and_ph(name, date_of_analysis))
                     conductivity_and_ph_handled = True
                 # else: already added when "pH" was processed (or will be) -- skip duplicate
             else:
-                sections.append(electrical_section_builder.build_conductivity(name))
+                sections.append(electrical_section_builder.build_conductivity(name, date_of_analysis))
         elif name == "pH":
             if has_conductivity:
                 if not conductivity_and_ph_handled:
-                    sections.append(electrical_section_builder.build_conductivity_and_ph(name))
+                    sections.append(electrical_section_builder.build_conductivity_and_ph(name, date_of_analysis))
                     conductivity_and_ph_handled = True
             else:
-                sections.append(misc_analysis_section_builder.build_ph(name))
+                sections.append(misc_analysis_section_builder.build_ph(name, date_of_analysis))
         elif name == "Density":
-            sections.append(misc_analysis_section_builder.build_density(name))
+            sections.append(misc_analysis_section_builder.build_density(name, date_of_analysis))
         elif name == "Liquid Particle Count":
-            sections.append(misc_analysis_section_builder.build_lpc(name))
+            sections.append(misc_analysis_section_builder.build_lpc(name, date_of_analysis))
         elif name == "APHA Color":
-            sections.append(misc_analysis_section_builder.build_apha(name))
+            sections.append(misc_analysis_section_builder.build_apha(name, date_of_analysis))
         elif name == "Assay":
-            sections.append(titrations_section_builder.build_assay(name))
+            sections.append(titrations_section_builder.build_assay(name, date_of_analysis))
         elif name == "GC-FID":
             # Confirmed real (a real Chemical customer's intake form uses
             # "GC-FID" verbatim as a Titrations selection) -- see
             # titrations_section_builder.py's DISPATCH STATUS note, now
             # updated: this is no longer a guess.
-            sections.append(titrations_section_builder.build_gc_fid(name))
+            sections.append(titrations_section_builder.build_gc_fid(name, date_of_analysis))
         elif name == "Moisture (Karl Fischer)":
             # Confirmed real (same real Chemical customer's intake form,
             # verbatim Titrations selection alongside "GC-FID" above).
-            sections.append(titrations_section_builder.build_kf_water(name))
+            sections.append(titrations_section_builder.build_kf_water(name, date_of_analysis))
         else:
             raise ValueError(
                 f"analysis {name!r} is not yet supported by this architecture -- "
@@ -342,20 +357,22 @@ def build_sections(
         if metals_panel_section is not None:
             analyte_list_section_builder.add_additional_elements_block(
                 metals_panel_section, additional_element_names, element_service, prep_text, metals_instrument,
-                metals_specs, has_ked_elements,
+                metals_specs, has_ked_elements, date_of_analysis,
             )
         else:
             sections.append(
                 analyte_list_section_builder.build_additional_elements_only_panel(
                     "Additional Elements", additional_element_names, element_service, prep_text, metals_instrument,
-                    metals_specs, has_ked_elements,
+                    metals_specs, has_ked_elements, date_of_analysis,
                 )
             )
 
     return sections
 
 
-def _ion_panel(name: str, category_label: str, analytes, prep_text: str | None) -> ReportSection:
+def _ion_panel(
+    name: str, category_label: str, analytes, prep_text: str | None, date_of_analysis: str | None = None
+) -> ReportSection:
     # Confirmed real: "Analysis by IC (<prep>)" ONLY for a chemical with
     # its own real Chemical.ions_prep on file (one real confirmed
     # instance); every other real ion panel checked is a bare
@@ -369,7 +386,7 @@ def _ion_panel(name: str, category_label: str, analytes, prep_text: str | None) 
     footer_text = f"Analysis by IC ({prep_text})" if show_prep else "Analysis by IC"
     return ion_list_section_builder.build_ion_panel(
         name, category_label, analytes, footer_text,
-        sop_codes=sop_codes.ION_PANEL_SOP_CODES.get(name),
+        sop_codes=sop_codes.ION_PANEL_SOP_CODES.get(name), date_of_analysis=date_of_analysis,
     )
 
 

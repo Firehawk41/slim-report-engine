@@ -28,17 +28,18 @@ from slim_report_engine.reporting import row_builders, sop_codes
 from slim_report_engine.reporting.report_section import ReportSection
 
 
-def build_assay(id: str) -> ReportSection:
+def build_assay(id: str, date_of_analysis: str | None = None) -> ReportSection:
     section = ReportSection(id)
     row_builders.add_simple_header_row(section, "Assay", "Result", "STDEV")
     row_builders.add_analyte_row(section, "", "%")
     row_builders.add_footer_row(
-        section, "Analysis by Auto-Titrator", sop_codes=sop_codes.SIMPLE_SHAPE_SOP_CODES.get(id)
+        section, "Analysis by Auto-Titrator", sop_codes=sop_codes.SIMPLE_SHAPE_SOP_CODES.get(id),
+        date_of_analysis=date_of_analysis,
     )
     return section
 
 
-def build_kf_water(id: str) -> ReportSection:
+def build_kf_water(id: str, date_of_analysis: str | None = None) -> ReportSection:
     """Confirmed real: the data row's unit is "ppm", not the "%" the real
     VBA reference source (clsTitrationsSectionBuilder.cls) has -- the
     template that source was ported from disagrees with a real completed
@@ -48,14 +49,14 @@ def build_kf_water(id: str) -> ReportSection:
     section = ReportSection(id)
     row_builders.add_simple_header_row(section, "Karl Fischer", "Result", "STDEV")
     row_builders.add_analyte_row(section, "Water", "ppm")
-    row_builders.add_footer_row(section, "Analysis by KF-Titration")
+    row_builders.add_footer_row(section, "Analysis by KF-Titration", date_of_analysis=date_of_analysis)
     return section
 
 
-def build_gc_fid(id: str) -> ReportSection:
+def build_gc_fid(id: str, date_of_analysis: str | None = None) -> ReportSection:
     section = ReportSection(id)
     row_builders.add_simple_header_row(section, "GC-FID", "Results", "STDEV")
     row_builders.add_analyte_row(section, "Chemical 1", "%/Vol")
     row_builders.add_analyte_row(section, "Chemical 2", "%/Vol")
-    row_builders.add_footer_row(section, "Analysis by GC-FID (average of triplicates)")
+    row_builders.add_footer_row(section, "Analysis by GC-FID (average of triplicates)", date_of_analysis=date_of_analysis)
     return section

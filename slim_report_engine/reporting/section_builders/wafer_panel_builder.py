@@ -55,6 +55,7 @@ def build_element_panel(
     element_symbols: list[str],
     element_service: ElementService,
     additional_element_names: list[str] | None = None,
+    date_of_analysis: str | None = None,
 ) -> ReportSection:
     """process_blank_sample_id/slot_sample_ids: fully-formatted sample-ID
     strings (see wafer_report_builder.py for the format) — this builder
@@ -62,7 +63,10 @@ def build_element_panel(
     optional element NAME strings (not symbols) requested via the intake
     form's free-text "Additional Elements" field — looked up by name,
     appended after the fixed panel, matching the real insertion point
-    (just before the "Analysis by..." footer row).
+    (just before the "Analysis by..." footer row). date_of_analysis:
+    pre-formatted "MM-DD-YY" text (see date_of_analysis.py) -- Wafer's own
+    element panel is the ONLY Wafer shape with a "Date of Analysis: "
+    placeholder at all (confirmed real, see module docstring).
     """
     section = ReportSection(id)
     _add_common_header_rows(section, "Element", units_note_text, process_blank_sample_id, slot_sample_ids, "MDL")
@@ -86,6 +90,7 @@ def build_element_panel(
         # Wafer report-building chain looks up a real Chemical yet --
         # matches every real Wafer instance found so far.
         sop_codes=sop_codes.wafer_element_panel_sop_codes(),
+        date_of_analysis=date_of_analysis,
     )
     return section
 
@@ -167,13 +172,15 @@ def _add_footer_rows(
     analysis_text: str,
     include_date_of_analysis: bool,
     sop_codes: list[str] | None = None,
+    date_of_analysis: str | None = None,
 ) -> None:
     section.add_row(_blank_row_wide())
 
     analysis_row = ReportRow(style_name="Normal", max_columns=MAX_SAMPLE_COLUMNS)
     analysis_row.set_value(1, analysis_text)
     if include_date_of_analysis:
-        analysis_row.set_value(4, "Date of Analysis: ")
+        label = "Date of Analysis: " + date_of_analysis if date_of_analysis else "Date of Analysis: "
+        analysis_row.set_value(4, label)
     section.add_row(analysis_row)
 
     if sop_codes:

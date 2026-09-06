@@ -168,7 +168,9 @@ def add_note_row(section: ReportSection, text: str) -> None:
     section.add_row(row)
 
 
-def add_footer_row(section: ReportSection, text: str, sop_codes: list[str] | None = None) -> None:
+def add_footer_row(
+    section: ReportSection, text: str, sop_codes: list[str] | None = None, date_of_analysis: str | None = None
+) -> None:
     """Confirmed real (every shape checked -- metals/ion panels, Assay,
     LPC): exactly one blank row separates the last content row from
     "Analysis by ...", and exactly one blank row separates it from
@@ -186,12 +188,23 @@ def add_footer_row(section: ReportSection, text: str, sop_codes: list[str] | Non
     after the blank spacer). None (the default) means no confirmed real
     evidence yet for this exact combination -- omit the line entirely
     rather than guess.
+
+    date_of_analysis: pre-formatted "MM-DD-YY" text (see
+    submission_report_builder._date_of_analysis_text) appended after the
+    "Date of Analysis: " label -- confirmed real format (every real
+    completed report checked uses this pattern, e.g. "08-27-26"; a few
+    use a 4-digit year or a trailing period, but MM-DD-YY with none is
+    the majority convention, same "pick one for consistency" call already
+    made for Test Methods' trailing period). None (the default) leaves
+    the label with nothing after it, for callers that haven't resolved a
+    submission/sample context (e.g. section-builder unit tests).
     """
     if section.rows and section.rows[-1].values:
         section.add_row(blank_row())
     row = ReportRow(style_name="Normal")
     row.set_value(1, text)
-    row.set_value(4, "Date of Analysis: ")
+    label = "Date of Analysis: " + date_of_analysis if date_of_analysis else "Date of Analysis: "
+    row.set_value(4, label)
     section.add_row(row)
     if sop_codes:
         section.add_row(test_methods_row(sop_codes))

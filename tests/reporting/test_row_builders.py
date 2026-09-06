@@ -93,6 +93,13 @@ def test_add_footer_row_echoes_date_of_analysis():
     assert row.get_value(4) == "Date of Analysis: "
 
 
+def test_add_footer_row_with_date_of_analysis_appends_it_to_the_label():
+    section = ReportSection("test")
+    row_builders.add_footer_row(section, "Analysis by pH Electrode", date_of_analysis="09-09-26")
+    row = section.rows[0]
+    assert row.get_value(4) == "Date of Analysis: 09-09-26"
+
+
 def test_add_footer_row_without_sop_codes_has_no_test_methods_row():
     section = ReportSection("test")
     row_builders.add_footer_row(section, "Analysis by pH Electrode")

@@ -22,7 +22,9 @@ from slim_report_engine.reporting import row_builders, sop_codes
 from slim_report_engine.reporting.report_section import ReportSection
 
 
-def build_silicon(id: str, include_total: bool, include_dissolved: bool) -> ReportSection:
+def build_silicon(
+    id: str, include_total: bool, include_dissolved: bool, date_of_analysis: str | None = None
+) -> ReportSection:
     if not include_total and not include_dissolved:
         raise ValueError("must include at least one of total/dissolved Si")
 
@@ -45,10 +47,12 @@ def build_silicon(id: str, include_total: bool, include_dissolved: bool) -> Repo
         # sop_codes.SILICON_TOTAL_SOP_CODES.
         row_builders.add_footer_row(
             section, "Analysis by ICP-OES (Evaporation)",
-            sop_codes=sop_codes.SILICON_TOTAL_SOP_CODES,
+            sop_codes=sop_codes.SILICON_TOTAL_SOP_CODES, date_of_analysis=date_of_analysis,
         )
     if include_dissolved:
-        row_builders.add_footer_row(section, "Dissolved Silica Analysis by UV-VIS (Evaporation)")
+        row_builders.add_footer_row(
+            section, "Dissolved Silica Analysis by UV-VIS (Evaporation)", date_of_analysis=date_of_analysis
+        )
     if include_total and include_dissolved:
         row_builders.add_note_row(
             section,

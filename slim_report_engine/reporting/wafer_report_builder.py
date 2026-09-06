@@ -32,6 +32,7 @@ from datetime import date
 from slim_domain.domain.element.element_service import ElementService
 from slim_domain.domain.tr.enums import ProcessingTime
 
+from slim_report_engine.reporting import date_of_analysis
 from slim_report_engine.reporting.presets import analyte_presets, wafer_anion_presets
 from slim_report_engine.reporting.report_section import ReportSection
 from slim_report_engine.reporting.section_builders import wafer_panel_builder
@@ -95,21 +96,23 @@ def build_wafer_sheet(
     """
     process_blank_id = _wafer_sample_string(date_received, wafer_size, customer, "Process Blank")
     slot_ids = [_wafer_sample_string(date_received, wafer_size, customer, label) for label in slot_sample_labels]
+    date_of_analysis_text = date_of_analysis.compute_text(date_received, processing_time)
 
     if number_of_elements_label == "36 Elements":
         section = wafer_panel_builder.build_element_panel(
             number_of_elements_label, _ATOMS_NOTE, process_blank_id, slot_ids,
-            analyte_presets.trace_elements_36(), element_service, additional_element_names,
+            analyte_presets.trace_elements_36(), element_service, additional_element_names, date_of_analysis_text,
         )
     elif number_of_elements_label == "67 Elements":
         section = wafer_panel_builder.build_element_panel(
             number_of_elements_label, _ATOMS_NOTE, process_blank_id, slot_ids,
-            analyte_presets.trace_elements_67(), element_service, additional_element_names,
+            analyte_presets.trace_elements_67(), element_service, additional_element_names, date_of_analysis_text,
         )
     elif number_of_elements_label == "List #2 36 Elements":
         section = wafer_panel_builder.build_element_panel(
             number_of_elements_label, _ATOMS_NOTE, process_blank_id, slot_ids,
             analyte_presets.trace_elements_36_list2(), element_service, additional_element_names,
+            date_of_analysis_text,
         )
     elif number_of_elements_label == "4 Anions":
         section = wafer_panel_builder.build_anion_panel(

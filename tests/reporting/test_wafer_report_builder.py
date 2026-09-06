@@ -50,6 +50,31 @@ def test_process_blank_and_slot_sample_id_format():
     assert sample_id_row.get_value(6) == "030526-150mm Wafers-Acme Corp-Slot-2"
 
 
+def test_element_panel_gets_inferred_date_of_analysis():
+    """Confirmed real (direct user request): Wafer's element panel is the
+    only Wafer shape with a "Date of Analysis: " placeholder (see
+    wafer_panel_builder.py's module docstring) -- date_received is a
+    Thursday and NEXT_DAY is 1 business day, so the expected date is the
+    very next day, Friday."""
+    result = orchestrator.build_wafer_sheet(
+        "150mm", "atoms/cm^2", "36 Elements", "Acme Corp", date(2026, 3, 5), ["W-1"], [], _FakeElementService(),
+        ProcessingTime.NEXT_DAY,
+    )
+    footer = next(r for r in result.section.rows if r.get_value(1) == "Analysis by LP-ICPMS.")
+    assert footer.get_value(4) == "Date of Analysis: 03-06-26"
+
+
+def test_anion_panel_never_gets_date_of_analysis():
+    """Confirmed real: the anion panel has no "Date of Analysis: "
+    placeholder at all, unlike the element panel."""
+    result = orchestrator.build_wafer_sheet(
+        "150mm", "ions/cm^2", "4 Anions", "Acme Corp", date(2026, 3, 5), ["W-1"], [], _FakeElementService(),
+        ProcessingTime.NEXT_DAY,
+    )
+    footer = next(r for r in result.section.rows if r.get_value(1) == "Analysis by LP-IC.")
+    assert footer.get_value(4) is None
+
+
 def test_element_selections_use_atoms_note():
     for label in ("36 Elements", "67 Elements", "List #2 36 Elements"):
         result = orchestrator.build_wafer_sheet(

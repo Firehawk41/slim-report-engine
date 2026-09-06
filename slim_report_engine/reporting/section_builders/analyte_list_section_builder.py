@@ -39,6 +39,7 @@ def build_metals_panel(
     instrument: str = "ICPMS",
     specs: dict[str, float] | None = None,
     has_ked_elements: bool = False,
+    date_of_analysis: str | None = None,
 ) -> ReportSection:
     """symbols: element symbols in display order. summary_label: the text
     that appears in "AVERAGE / <summary_label>" and "TOTAL / <summary_label>"
@@ -104,11 +105,13 @@ def build_metals_panel(
     row_builders.add_footer_row(
         section, f"Analysis by {_display_instrument(instrument)} ({prep_text})",
         sop_codes=sop_codes.metals_panel_sop_codes(instrument, prep_text, has_ked_elements),
+        date_of_analysis=date_of_analysis,
     )
 
     if additional_element_names:
         add_additional_elements_block(
-            section, additional_element_names, element_service, prep_text, instrument, specs, has_ked_elements
+            section, additional_element_names, element_service, prep_text, instrument, specs, has_ked_elements,
+            date_of_analysis,
         )
 
     return section
@@ -122,6 +125,7 @@ def add_additional_elements_block(
     instrument: str = "ICPMS",
     specs: dict[str, float] | None = None,
     has_ked_elements: bool = False,
+    date_of_analysis: str | None = None,
 ) -> None:
     """Appends a labeled additional-elements block to an EXISTING metals
     panel section, in place -- confirmed real layout (two different real
@@ -148,6 +152,7 @@ def add_additional_elements_block(
     row_builders.add_footer_row(
         section, f"Analysis by {_display_instrument(instrument)} ({prep_text})",
         sop_codes=sop_codes.metals_panel_sop_codes(instrument, prep_text, has_ked_elements),
+        date_of_analysis=date_of_analysis,
     )
 
 
@@ -159,6 +164,7 @@ def build_additional_elements_only_panel(
     instrument: str = "ICPMS",
     specs: dict[str, float] | None = None,
     has_ked_elements: bool = False,
+    date_of_analysis: str | None = None,
 ) -> ReportSection:
     """The shape when additional elements are the ONLY thing requested on a
     sample -- no catalog metals-panel selection at all -- confirmed real
@@ -185,6 +191,7 @@ def build_additional_elements_only_panel(
     row_builders.add_footer_row(
         section, f"Analysis by {_display_instrument(instrument)} ({prep_text})",
         sop_codes=sop_codes.metals_panel_sop_codes(instrument, prep_text, has_ked_elements),
+        date_of_analysis=date_of_analysis,
     )
     return section
 

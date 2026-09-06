@@ -55,7 +55,7 @@ from slim_domain.domain.tr.tr_sample import TRSample
 from slim_domain.domain.tr.tr_submission import TRSubmission
 
 from slim_report_engine.reporting import chemical_water_report_builder, column_widths, dm5_non_routine_report_builder
-from slim_report_engine.reporting import row_builders, wafer_submission_builder
+from slim_report_engine.reporting import date_of_analysis, row_builders, wafer_submission_builder
 from slim_report_engine.reporting.report_section import ReportSection
 from slim_report_engine.reporting.sample_string_builder import build_sample_string
 
@@ -141,9 +141,10 @@ def build_submission_sheets(
         additional_elements_prep_text = customer.additional_elements_prep or None
         metals_specs = _specs_for_sample(submission, sample, chemical_service, specification_service, customer.id)
         has_ked_elements = _has_ked_elements(submission, sample, chemical_service)
+        date_of_analysis_text = _date_of_analysis_text(submission, sample)
         sections = chemical_water_report_builder.build_sections(
             sample, analysis_service, element_service, metals_prep_text, additional_elements_prep_text,
-            metals_instrument, ions_prep_text, metals_specs, has_ked_elements,
+            metals_instrument, ions_prep_text, metals_specs, has_ked_elements, date_of_analysis_text,
         )
         chemical_name = sample.form_chemical_name if submission.request_type == RequestType.CHEMICAL else "Water"
         sample_string = build_sample_string(
@@ -286,6 +287,16 @@ def _has_ked_elements(submission: TRSubmission, sample: TRSample, chemical_servi
         return False
     chemical = chemical_service.load_chemical(sample.chemical_id)
     return chemical is not None and bool(chemical.ked_element_ids)
+
+
+def _date_of_analysis_text(submission: TRSubmission, sample: TRSample) -> str:
+    """See date_of_analysis.compute_text -- a standalone module (not a
+    method here) so the Wafer path, which only has date_received/
+    processing_time as plain values by the time it needs this, can call
+    the same computation without importing this module (which would be
+    circular: this module already imports wafer_submission_builder).
+    """
+    return date_of_analysis.compute_text(submission.date_received, sample.processing_time)
 
 
 def _specs_for_sample(

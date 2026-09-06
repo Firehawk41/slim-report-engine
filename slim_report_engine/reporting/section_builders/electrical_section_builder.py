@@ -14,26 +14,26 @@ from slim_report_engine.reporting import row_builders
 from slim_report_engine.reporting.report_section import ReportSection
 
 
-def build_conductivity(id: str) -> ReportSection:
+def build_conductivity(id: str, date_of_analysis: str | None = None) -> ReportSection:
     section = ReportSection(id)
     row_builders.add_simple_header_row(section, "Electrical Testing", "Results", "STDEV")
     row_builders.add_analyte_row(section, "Conductivity", "uS/cm")
-    row_builders.add_footer_row(section, "Analysis by Conductivity Electrode")
+    row_builders.add_footer_row(section, "Analysis by Conductivity Electrode", date_of_analysis=date_of_analysis)
     return section
 
 
-def build_ph(id: str) -> ReportSection:
+def build_ph(id: str, date_of_analysis: str | None = None) -> ReportSection:
     section = ReportSection(id)
     row_builders.add_simple_header_row(section, "Electrical Testing", "Results", "STDEV")
     row_builders.add_analyte_row(section, "pH (dimensionless quantity)", "")
-    row_builders.add_footer_row(section, "Analysis by pH Electrode")
+    row_builders.add_footer_row(section, "Analysis by pH Electrode", date_of_analysis=date_of_analysis)
     return section
 
 
-def build_conductivity_and_ph(id: str) -> ReportSection:
+def build_conductivity_and_ph(id: str, date_of_analysis: str | None = None) -> ReportSection:
     section = ReportSection(id)
     row_builders.add_simple_header_row(section, "Electrical Testing", "Results", "STDEV")
     row_builders.add_analyte_row(section, "Conductivity", "uS/cm")
     row_builders.add_analyte_row(section, "pH (dimensionless quantity)", "")
-    row_builders.add_footer_row(section, "Analysis by pH/Conductivity Electrode")
+    row_builders.add_footer_row(section, "Analysis by pH/Conductivity Electrode", date_of_analysis=date_of_analysis)
     return section

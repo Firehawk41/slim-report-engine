@@ -499,6 +499,26 @@ def test_water_sample_never_gets_ked_elements_check():
     assert test_methods.get_value(1) == "Test Methods: PR-IN14 and PR-IN48."
 
 
+def test_generic_sample_gets_inferred_date_of_analysis_in_every_footer():
+    """Confirmed real (direct user request): the "Date of Analysis: "
+    placeholder gets a real inferred value (check-in + turnaround, weekend-
+    aware -- see date_of_analysis.py) instead of staying blank. date_received
+    is a Thursday (see _submission) and the default ProcessingTime.NEXT_DAY
+    is 1 business day, so the expected date is the very next day, Friday."""
+    samples = [_sample("S-001", analysis_ids=(1, 2), chemical_id=1)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements", 2: "TOC"})
+    chemical_svc = _FakeChemicalService({1: _FakeChemical(id=1, name="Test Acid", metals_prep="Evaporation")})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService(), _FakeSpecificationService()
+    )
+    date_cells = [
+        r.get_value(4) for section in sheets[0].sections for r in section.rows
+        if r.get_value(4) and "Date of Analysis" in str(r.get_value(4))
+    ]
+    assert date_cells == ["Date of Analysis: 03-06-26", "Date of Analysis: 03-06-26"]
+
+
 def test_chemical_sample_uses_the_resolved_customer_and_chemicals_real_specs():
     samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1)]
     submission = _submission(samples, request_type=RequestType.CHEMICAL)
