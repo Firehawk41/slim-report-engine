@@ -360,7 +360,13 @@ def _ion_panel(name: str, category_label: str, analytes, prep_text: str | None) 
     # its own real Chemical.ions_prep on file (one real confirmed
     # instance); every other real ion panel checked is a bare
     # "Analysis by IC" -- see module docstring's ION PANEL PREP TEXT note.
-    footer_text = f"Analysis by IC ({prep_text})" if prep_text else "Analysis by IC"
+    # "Dilute and Shoot" gets the same bare treatment as None/blank --
+    # confirmed real (direct user correction): it's the implied default
+    # prep for ion panels by current lab convention, so calling it out
+    # explicitly in the footer is redundant, not informative, the same
+    # way a Chemical with no ions_prep on file gets no parenthetical.
+    show_prep = bool(prep_text) and prep_text != "Dilute and Shoot"
+    footer_text = f"Analysis by IC ({prep_text})" if show_prep else "Analysis by IC"
     return ion_list_section_builder.build_ion_panel(
         name, category_label, analytes, footer_text,
         sop_codes=sop_codes.ION_PANEL_SOP_CODES.get(name),

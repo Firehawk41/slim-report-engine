@@ -612,6 +612,22 @@ def test_chemical_sample_uses_the_resolved_chemicals_catalog_ions_prep():
     assert footer.get_value(1) == "Analysis by IC (Evaporation)"
 
 
+def test_chemical_sample_with_dilute_and_shoot_ions_prep_gets_bare_ic_footer():
+    """Confirmed real (direct user correction): "Dilute and Shoot" is the
+    implied default ion prep by current lab convention, so it gets the
+    same bare "Analysis by IC" treatment as no ions_prep on file at all --
+    NOT "Analysis by IC (Dilute and Shoot)"."""
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "4 Anions"})
+    chemical_svc = _FakeChemicalService(
+        {1: _FakeChemical(id=1, name="Test Acid", metals_prep="Evaporation", ions_prep="Dilute and Shoot")}
+    )
+    sheets = dispatcher.build_submission_sheets(submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService(), _FakeSpecificationService())
+    footer = next(r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by IC" in str(r.get_value(1)))
+    assert footer.get_value(1) == "Analysis by IC"
+
+
 def test_water_sample_always_gets_bare_ic_footer_no_chemical_lookup():
     samples = [_sample("S-001", analysis_ids=(1,))]
     submission = _submission(samples, request_type=RequestType.WATER)
