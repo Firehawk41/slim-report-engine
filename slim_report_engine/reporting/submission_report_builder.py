@@ -140,9 +140,10 @@ def build_submission_sheets(
         ions_prep_text = _ions_prep_text(submission, sample, chemical_service)
         additional_elements_prep_text = customer.additional_elements_prep or None
         metals_specs = _specs_for_sample(submission, sample, chemical_service, specification_service, customer.id)
+        has_ked_elements = _has_ked_elements(submission, sample, chemical_service)
         sections = chemical_water_report_builder.build_sections(
             sample, analysis_service, element_service, metals_prep_text, additional_elements_prep_text,
-            metals_instrument, ions_prep_text, metals_specs,
+            metals_instrument, ions_prep_text, metals_specs, has_ked_elements,
         )
         chemical_name = sample.form_chemical_name if submission.request_type == RequestType.CHEMICAL else "Water"
         sample_string = build_sample_string(
@@ -272,6 +273,19 @@ def _ions_prep_text(submission: TRSubmission, sample: TRSample, chemical_service
     if chemical is not None and chemical.ions_prep:
         return chemical.ions_prep
     return None
+
+
+def _has_ked_elements(submission: TRSubmission, sample: TRSample, chemical_service: ChemicalService) -> bool:
+    """Confirmed real (lab's own SOP master list, cross-checked against
+    Chemical.ked_element_ids, slim-domain): 49 real chemicals have KED
+    elements on file, overwhelmingly on "Dilute and Shoot" prep. False for
+    Water (no Chemical record to read from at all) and for any Chemical
+    with no ked_element_ids on file -- never guessed.
+    """
+    if submission.request_type != RequestType.CHEMICAL:
+        return False
+    chemical = chemical_service.load_chemical(sample.chemical_id)
+    return chemical is not None and bool(chemical.ked_element_ids)
 
 
 def _specs_for_sample(

@@ -37,12 +37,15 @@ def build_silicon(id: str, include_total: bool, include_dissolved: bool) -> Repo
         row_builders.add_analyte_row(section, "Colloidal Silica *", "SiO2")
 
     if include_total:
-        # Same real footer text, same confirmed real SOP mapping, as the
-        # generic metals panel's own ICP-OES/Evaporation combo -- see
-        # sop_codes.METALS_PANEL_SOP_CODES.
+        # Same real footer TEXT as the generic metals panel's own
+        # ICP-OES/Evaporation combo, but NOT the same SOP codes -- the
+        # lab's own SOP master list gives Silicon its own dedicated
+        # "ICP-OES - Water Evaporator + Silicon" entry (PR-IN49 in
+        # addition to the shared PR-IN02 base code), confirmed real; see
+        # sop_codes.SILICON_TOTAL_SOP_CODES.
         row_builders.add_footer_row(
             section, "Analysis by ICP-OES (Evaporation)",
-            sop_codes=sop_codes.METALS_PANEL_SOP_CODES.get(("ICPOES", "Evaporation")),
+            sop_codes=sop_codes.SILICON_TOTAL_SOP_CODES,
         )
     if include_dissolved:
         row_builders.add_footer_row(section, "Dissolved Silica Analysis by UV-VIS (Evaporation)")

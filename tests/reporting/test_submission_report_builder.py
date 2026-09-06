@@ -32,6 +32,7 @@ class _FakeChemical:
     metals_prep: str = ""
     metals_instrument: str = "ICPMS"
     ions_prep: str = ""
+    ked_element_ids: frozenset[int] = frozenset()
 
 
 class _FakeChemicalService:
@@ -445,6 +446,57 @@ def test_chemical_sample_uses_the_resolved_chemicals_catalog_prep():
         r for r in sheets[0].sections[1].rows if r.get_value(1) and "Analysis by ICPMS" in str(r.get_value(1))
     )
     assert footer.get_value(1) == "Analysis by ICPMS (ICPMS Digestion)"
+
+
+def test_chemical_sample_with_ked_elements_gets_pr_in45_in_test_methods():
+    """Confirmed real (lab's own SOP master list, cross-checked against
+    Chemical.ked_element_ids): a chemical with KED elements on file gets
+    PR-IN45 added to its metals panel's Test Methods line."""
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    chemical_svc = _FakeChemicalService(
+        {1: _FakeChemical(id=1, name="Test Acid", metals_prep="Dilute and Shoot", ked_element_ids=frozenset({7}))}
+    )
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService(), _FakeSpecificationService()
+    )
+    test_methods = next(
+        r for r in sheets[0].sections[1].rows if r.get_value(1) and "Test Methods" in str(r.get_value(1))
+    )
+    assert test_methods.get_value(1) == "Test Methods: PR-IN14, PR-IN45 and PR-IN48."
+
+
+def test_chemical_sample_without_ked_elements_gets_no_pr_in45():
+    samples = [_sample("S-001", analysis_ids=(1,), chemical_id=1)]
+    submission = _submission(samples, request_type=RequestType.CHEMICAL)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    chemical_svc = _FakeChemicalService(
+        {1: _FakeChemical(id=1, name="Test Acid", metals_prep="Dilute and Shoot")}
+    )
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService(), _FakeSpecificationService()
+    )
+    test_methods = next(
+        r for r in sheets[0].sections[1].rows if r.get_value(1) and "Test Methods" in str(r.get_value(1))
+    )
+    assert test_methods.get_value(1) == "Test Methods: PR-IN14 and PR-IN48."
+
+
+def test_water_sample_never_gets_ked_elements_check():
+    """Water has no Chemical record to read ked_element_ids from at all --
+    has_ked_elements must be False, never guessed."""
+    samples = [_sample("S-001", analysis_ids=(1,))]
+    submission = _submission(samples, request_type=RequestType.WATER)
+    analysis_svc = _FakeAnalysisService({1: "36 Elements"})
+    chemical_svc = _FakeChemicalService({})
+    sheets = dispatcher.build_submission_sheets(
+        submission, _CUSTOMER, chemical_svc, analysis_svc, _FakeElementService(), _FakeSpecificationService()
+    )
+    test_methods = next(
+        r for r in sheets[0].sections[1].rows if r.get_value(1) and "Test Methods" in str(r.get_value(1))
+    )
+    assert test_methods.get_value(1) == "Test Methods: PR-IN14 and PR-IN48."
 
 
 def test_chemical_sample_uses_the_resolved_customer_and_chemicals_real_specs():

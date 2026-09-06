@@ -13,7 +13,7 @@ rather than guessing):
     and all customer-specific edge cases — deliberately last priority, not
     attempted here.
 
-"5 ANIONS + MS AUTHENTICATION" — confirmed real (one real Chemical
+"5 ANIONS + MS CONFIRMATION" — confirmed real (one real Chemical
 customer's report): renders the EXACT SAME 5-anion panel as plain
 "5 Anions" (same analytes, same order, same footer). The "MS
 Authentication" appendix visible on the real report (a "Conductivity"
@@ -25,6 +25,19 @@ manually-filled chemical-name placeholders. This matches the legacy
 macro's own treatment (modReportCreator.bas only substitutes the TAB NAME
 text for this variant, "MS confirmation" -> "MS Authentication", implying
 the underlying content was already understood to be identical).
+
+"MS Authentication" is the FORM-facing selection label (and the legacy
+tab-name text above) -- the resolved analysis this dispatches on is the
+CATALOG's own name, confirmed real (form_analyses -> analyses join):
+"5 Anions + MS Confirmation". A real bug until this fix: this branch
+compared against the form label ("...Authentication") instead of the
+resolved catalog name ("...Confirmation") that analysis_service.
+load_analysis(...).name actually returns, so it could never match --
+every real customer selecting this analysis (via any of its several real
+form labels: "5 Anions + MS Authentication", "5 Anions with MS
+confirmation", "5 Anions + MS confirmation") would have hit the
+"not yet supported" fallback instead of this already-confirmed-correct
+panel.
 
 PREP TEXT — the metals panel's footer ("Analysis by ICPMS (<prep>)") is
 NOT a fixed string. Confirmed real: Chemical samples use the resolved
@@ -115,7 +128,7 @@ from slim_report_engine.reporting.section_builders import (
 
 _UNCONDITIONALLY_SUPPORTED = {
     "36 Elements", "26 Elements", "10 Elements", "67 Elements", "USP Elements", "List #2 36 Elements",
-    "4 Anions", "5 Anions", "7 Anions", "Anions", "5 Anions + MS Authentication",
+    "4 Anions", "5 Anions", "7 Anions", "Anions", "5 Anions + MS Confirmation",
     "6 Cations", "NH4", "Methylamines", "Cations", "GBP",
     "Total Silicon", "Dissolved Silicon", "Dissolved and Total Si",
     "TOC", "Alkalinity", "Bacteria Count",
@@ -147,6 +160,7 @@ def build_sections(
     metals_instrument: str = "ICPMS",
     ions_prep_text: str | None = None,
     metals_specs: dict[str, float] | None = None,
+    has_ked_elements: bool = False,
 ) -> list[ReportSection]:
     """Returns one (or more, for Silicon's calculated Colloidal Silica row,
     or the additional-elements block) ReportSection per resolved analysis
@@ -192,6 +206,12 @@ def build_sections(
     other real ion panel checked has NO parenthesized prep, just a bare
     "Analysis by IC". None (the default, when the resolved chemical has no
     ions_prep on file) renders the bare form -- never guessed.
+
+    has_ked_elements: whether the resolved Chemical has KED-flagged
+    elements on file (Chemical.ked_element_ids, slim-domain) -- passed
+    straight through to the metals panel (see
+    analyte_list_section_builder.build_metals_panel); irrelevant to every
+    other section built here.
     """
     names = _resolved_names_in_order(sample, analysis_service)
     names_set = set(names)
@@ -217,34 +237,34 @@ def build_sections(
             summary_label = name.replace("Elements", "Tr.Elts")
             metals_panel_section = analyte_list_section_builder.build_metals_panel(
                 name, analyte_presets.trace_elements_36(), summary_label, element_service, metals_prep_text,
-                instrument=metals_instrument, specs=metals_specs,
+                instrument=metals_instrument, specs=metals_specs, has_ked_elements=has_ked_elements,
             )
             sections.append(metals_panel_section)
         elif name == "67 Elements":
             metals_panel_section = analyte_list_section_builder.build_metals_panel(
                 name, analyte_presets.trace_elements_67(), "67 Tr.Elts", element_service, metals_prep_text,
-                instrument=metals_instrument, specs=metals_specs,
+                instrument=metals_instrument, specs=metals_specs, has_ked_elements=has_ked_elements,
             )
             sections.append(metals_panel_section)
         elif name == "USP Elements":
             metals_panel_section = analyte_list_section_builder.build_metals_panel(
                 name, analyte_presets.trace_elements_usp(), "USP Tr.Elts", element_service, metals_prep_text,
-                instrument=metals_instrument, specs=metals_specs,
+                instrument=metals_instrument, specs=metals_specs, has_ked_elements=has_ked_elements,
             )
             sections.append(metals_panel_section)
         elif name == "List #2 36 Elements":
             metals_panel_section = analyte_list_section_builder.build_metals_panel(
                 name, analyte_presets.trace_elements_36_list2(), "36 Tr.Elts", element_service, metals_prep_text,
-                instrument=metals_instrument, specs=metals_specs,
+                instrument=metals_instrument, specs=metals_specs, has_ked_elements=has_ked_elements,
             )
             sections.append(metals_panel_section)
         elif name == "4 Anions":
             sections.append(_ion_panel(name, "Anion", ion_presets.anions_4(), ions_prep_text))
         elif name == "5 Anions":
             sections.append(_ion_panel(name, "Anion", ion_presets.anions_5(), ions_prep_text))
-        elif name == "5 Anions + MS Authentication":
+        elif name == "5 Anions + MS Confirmation":
             # Confirmed real: identical panel content to plain "5 Anions"
-            # -- see module docstring's "5 ANIONS + MS AUTHENTICATION"
+            # -- see module docstring's "5 ANIONS + MS CONFIRMATION"
             # section for why the appendix isn't reproduced here.
             sections.append(_ion_panel(name, "Anion", ion_presets.anions_5(), ions_prep_text))
         elif name == "7 Anions":
@@ -322,13 +342,13 @@ def build_sections(
         if metals_panel_section is not None:
             analyte_list_section_builder.add_additional_elements_block(
                 metals_panel_section, additional_element_names, element_service, prep_text, metals_instrument,
-                metals_specs,
+                metals_specs, has_ked_elements,
             )
         else:
             sections.append(
                 analyte_list_section_builder.build_additional_elements_only_panel(
                     "Additional Elements", additional_element_names, element_service, prep_text, metals_instrument,
-                    metals_specs,
+                    metals_specs, has_ked_elements,
                 )
             )
 

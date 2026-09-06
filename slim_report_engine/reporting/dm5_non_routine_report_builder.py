@@ -53,7 +53,7 @@ _COMPOSITE_CHEMICALS = {"0.49%HF", "2.5%HF"}
 # every other Chemical/Water sample's analysis selections. The routine
 # DM5 schedule-grid path (out of scope) DOES always get a fixed set --
 # non-routine, which this module builds, does not.
-_ANION_ANALYSIS_NAMES = {"4 Anions", "5 Anions", "7 Anions", "Anions", "5 Anions + MS Authentication"}
+_ANION_ANALYSIS_NAMES = {"4 Anions", "5 Anions", "7 Anions", "Anions", "5 Anions + MS Confirmation"}
 
 _ELEMENT_SPECS_BY_LOCATION: dict[str, dict[str, Callable[[], dict[str, float]]]] = {
     "DM5N": {

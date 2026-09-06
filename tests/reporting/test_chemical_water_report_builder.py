@@ -171,7 +171,7 @@ def test_4_anions_panel_has_confirmed_test_methods_row():
 
 def test_5_anions_panel_has_no_confirmed_test_methods_row():
     """No confirmed real SOP mapping for plain "5 Anions" -- only "4
-    Anions" and "5 Anions + MS Authentication" were cross-referenced."""
+    Anions" and "5 Anions + MS Confirmation" were cross-referenced."""
     svc = _FakeAnalysisService({1: "5 Anions"})
     sections = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
     assert not any("Test Methods" in str(r.get_value(1)) for r in sections[0].rows)
@@ -332,12 +332,12 @@ def test_can_build_sections_true_for_moisture_karl_fischer():
 
 
 # ---------------------------------------------------------------------------
-# build_sections -- "5 Anions + MS Authentication" (confirmed real: one
+# build_sections -- "5 Anions + MS Confirmation" (confirmed real: one
 # real Chemical customer's report)
 # ---------------------------------------------------------------------------
 
 def test_5_anions_plus_ms_authentication_renders_the_same_panel_as_plain_5_anions():
-    svc = _FakeAnalysisService({1: "5 Anions + MS Authentication"})
+    svc = _FakeAnalysisService({1: "5 Anions + MS Confirmation"})
     with_ms = orchestrator.build_sections(_sample((1,)), svc, _FakeElementService())
     svc2 = _FakeAnalysisService({1: "5 Anions"})
     plain = orchestrator.build_sections(_sample((1,)), svc2, _FakeElementService())

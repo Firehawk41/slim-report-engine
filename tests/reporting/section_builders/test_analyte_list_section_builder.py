@@ -134,6 +134,51 @@ def test_build_metals_panel_instrument_applies_to_additional_elements_block_too(
     assert footers == ["Analysis by ICP-OES (Evaporation)", "Analysis by ICP-OES (Evaporation)"]
 
 
+def _test_methods_rows(section):
+    return [r.get_value(1) for r in section.rows if r.get_value(1) and "Test Methods" in str(r.get_value(1))]
+
+
+def test_build_metals_panel_has_ked_elements_inserts_pr_in45():
+    """Confirmed real (lab's own SOP master list): every ICPMS "with KEDS"
+    variant is its non-KEDS counterpart's codes with PR-IN45 inserted
+    right after the first code."""
+    section = builder.build_metals_panel(
+        "36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService(),
+        prep_text="Dilute and Shoot", has_ked_elements=True,
+    )
+    assert _test_methods_rows(section) == ["Test Methods: PR-IN14, PR-IN45 and PR-IN48."]
+
+
+def test_build_metals_panel_default_has_no_ked_pr_in45():
+    section = builder.build_metals_panel(
+        "36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService(), prep_text="Dilute and Shoot",
+    )
+    assert _test_methods_rows(section) == ["Test Methods: PR-IN14 and PR-IN48."]
+
+
+def test_build_metals_panel_has_ked_elements_applies_to_additional_elements_block_too():
+    """has_ked_elements is a per-chemical property -- confirmed real: the
+    same value applies to the main panel and any additional-elements block."""
+    section = builder.build_metals_panel(
+        "36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService(),
+        prep_text="Evaporation", additional_element_names=["Antimony"], has_ked_elements=True,
+    )
+    assert _test_methods_rows(section) == [
+        "Test Methods: PR-IN14, PR-IN45, PR-IN48 and PR-IN52.",
+        "Test Methods: PR-IN14, PR-IN45, PR-IN48 and PR-IN52.",
+    ]
+
+
+def test_organic_dilute_and_shoot_ampersand_variant_matches_same_codes():
+    """Confirmed real: at least one real chemical's metals_prep is stored
+    with an ampersand ("Organic Dilute & Shoot") instead of "and" -- same
+    real method, same codes, not a different prep."""
+    section = builder.build_metals_panel(
+        "36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService(), prep_text="Organic Dilute & Shoot",
+    )
+    assert _test_methods_rows(section) == ["Test Methods: PR-IN14 and PR-IN58."]
+
+
 def test_add_additional_elements_block_default_instrument_is_icpms():
     section = builder.build_metals_panel("36 Elements", ["Al"], "36 Tr.Elts", _FakeElementService())
     builder.add_additional_elements_block(section, ["Antimony"], _FakeElementService(), "Evaporation")

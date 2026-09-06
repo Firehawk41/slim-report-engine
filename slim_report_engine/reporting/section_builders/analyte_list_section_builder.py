@@ -38,6 +38,7 @@ def build_metals_panel(
     additional_element_names: list[str] | None = None,
     instrument: str = "ICPMS",
     specs: dict[str, float] | None = None,
+    has_ked_elements: bool = False,
 ) -> ReportSection:
     """symbols: element symbols in display order. summary_label: the text
     that appears in "AVERAGE / <summary_label>" and "TOTAL / <summary_label>"
@@ -81,6 +82,12 @@ def build_metals_panel(
     here. Unlike prep_text, this is the SAME for the main panel and any
     additional-elements block -- it's a property of the sample's physical
     matrix, not a per-block override.
+
+    has_ked_elements: whether the resolved Chemical has KED-flagged
+    elements on file (Chemical.ked_element_ids, slim-domain) -- confirmed
+    real: adds PR-IN45 to the footer's Test Methods codes (see
+    sop_codes.metals_panel_sop_codes), a per-chemical property so the SAME
+    value applies to this panel and any additional-elements block below.
     """
     section = ReportSection(id)
     row_builders.add_header_rows(section, "Element", "MDL")
@@ -96,12 +103,12 @@ def build_metals_panel(
     _add_summary_rows(section, summary_label, first_data_row)
     row_builders.add_footer_row(
         section, f"Analysis by {_display_instrument(instrument)} ({prep_text})",
-        sop_codes=sop_codes.METALS_PANEL_SOP_CODES.get((instrument, prep_text)),
+        sop_codes=sop_codes.metals_panel_sop_codes(instrument, prep_text, has_ked_elements),
     )
 
     if additional_element_names:
         add_additional_elements_block(
-            section, additional_element_names, element_service, prep_text, instrument, specs
+            section, additional_element_names, element_service, prep_text, instrument, specs, has_ked_elements
         )
 
     return section
@@ -114,6 +121,7 @@ def add_additional_elements_block(
     prep_text: str,
     instrument: str = "ICPMS",
     specs: dict[str, float] | None = None,
+    has_ked_elements: bool = False,
 ) -> None:
     """Appends a labeled additional-elements block to an EXISTING metals
     panel section, in place -- confirmed real layout (two different real
@@ -139,7 +147,7 @@ def add_additional_elements_block(
 
     row_builders.add_footer_row(
         section, f"Analysis by {_display_instrument(instrument)} ({prep_text})",
-        sop_codes=sop_codes.METALS_PANEL_SOP_CODES.get((instrument, prep_text)),
+        sop_codes=sop_codes.metals_panel_sop_codes(instrument, prep_text, has_ked_elements),
     )
 
 
@@ -150,6 +158,7 @@ def build_additional_elements_only_panel(
     prep_text: str,
     instrument: str = "ICPMS",
     specs: dict[str, float] | None = None,
+    has_ked_elements: bool = False,
 ) -> ReportSection:
     """The shape when additional elements are the ONLY thing requested on a
     sample -- no catalog metals-panel selection at all -- confirmed real
@@ -175,7 +184,7 @@ def build_additional_elements_only_panel(
 
     row_builders.add_footer_row(
         section, f"Analysis by {_display_instrument(instrument)} ({prep_text})",
-        sop_codes=sop_codes.METALS_PANEL_SOP_CODES.get((instrument, prep_text)),
+        sop_codes=sop_codes.metals_panel_sop_codes(instrument, prep_text, has_ked_elements),
     )
     return section
 

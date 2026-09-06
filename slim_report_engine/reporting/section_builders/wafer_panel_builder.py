@@ -81,7 +81,11 @@ def build_element_panel(
 
     _add_footer_rows(
         section, "Analysis by LP-ICPMS.", include_date_of_analysis=True,
-        sop_codes=sop_codes.WAFER_ELEMENT_PANEL_SOP_CODES,
+        # has_ked_elements defaults to True here (see
+        # sop_codes.wafer_element_panel_sop_codes) since nothing in the
+        # Wafer report-building chain looks up a real Chemical yet --
+        # matches every real Wafer instance found so far.
+        sop_codes=sop_codes.wafer_element_panel_sop_codes(),
     )
     return section
 
